@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { timingSafeEqual } from "node:crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,11 +17,6 @@ function relayConfig() {
   return { origin: parsed.origin, token };
 }
 
-function constantTimeEqual(a: string, b: string): boolean {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  return left.length === right.length && timingSafeEqual(left, right);
-}
 
 async function proxy(request: NextRequest, context: RouteContext) {
   let config: ReturnType<typeof relayConfig>;
@@ -30,10 +24,10 @@ async function proxy(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Koneksi hotel belum dikonfigurasi." }, { status: 503 });
   }
 
-  const supplied = request.headers.get("x-nginap-proxy-check") ?? "";
-  // Reject direct attempts to use the proxy from cross-site browser contexts.
+  // Same-origin proxy only: block cross-site fetches and foreign Origin headers.
   const fetchSite = request.headers.get("sec-fetch-site");
-  if (fetchSite === "cross-site" || (supplied && !constantTimeEqual(supplied, "nginap-same-origin"))) {
+  const origin = request.headers.get("origin");
+  if (fetchSite === "cross-site" || (origin && origin !== request.nextUrl.origin)) {
     return NextResponse.json({ error: "Permintaan tidak diizinkan." }, { status: 403 });
   }
 
