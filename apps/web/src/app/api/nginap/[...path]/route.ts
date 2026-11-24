@@ -41,7 +41,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
   url.pathname = "/" + path.map(encodeURIComponent).join("/");
   url.search = request.nextUrl.search;
 
-  let body: Uint8Array | undefined;
+  let body: Blob | undefined;
   if (request.method !== "GET" && request.method !== "HEAD") {
     const declaredLength = Number(request.headers.get("content-length") ?? "0");
     if (Number.isFinite(declaredLength) && declaredLength > 64 * 1024) {
@@ -61,9 +61,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
         }
         chunks.push(value);
       }
-      body = new Uint8Array(total);
-      let offset = 0;
-      for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
+      body = new Blob(chunks);
     }
   }
 
