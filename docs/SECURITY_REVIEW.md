@@ -7,7 +7,7 @@ Scope: Next.js public web app, same-origin relay, Express local API, staff sessi
 
 | Dependency | Risk | Remediation / status |
 |---|---|---|
-| Next.js was declared at 15.5.27, within upstream affected ranges for critical image-optimization RCE and later response/cookie handling advisories | A publicly reachable framework endpoint could expose the app to upstream vulnerabilities even when the hotel API is protected | Pin Next.js to 15.5.29, the patched 15.x release identified by upstream advisories; keep monitoring security releases |
+| Next.js was declared at 15.5.27, within upstream affected ranges for critical image-optimization RCE and later response/cookie handling advisories | A publicly reachable framework endpoint could expose the app to upstream vulnerabilities even when the hotel API is protected | Pin Next.js to 15.5.29, the patched 15.x release identified by upstream advisories; keep monitoring security releases |\n| npm audit initially reported 2 high and 3 moderate dependency advisories, including PostCSS, Zod and UUID | Vulnerable transitive and direct dependencies increase exposure | Upgrade Zod to 4.6.7, express-rate-limit to 8.7.5, override PostCSS to 8.5.33+ and UUID to 11.1.1+; the follow-up CI audit reported 0 advisories |
 
 | Finding | Risk | Remediation |
 |---|---|---|
