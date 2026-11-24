@@ -18,11 +18,14 @@ const backupDir=path.resolve(process.env.NGINAP_BACKUP_DIR??path.join(rootDir,"b
 const host=process.env.NGINAP_HOST??"127.0.0.1";
 const port=Number(process.env.NGINAP_PORT??4100);
 const secret=process.env.NGINAP_SESSION_SECRET??"";
+const relayToken=process.env.NGINAP_RELAY_TOKEN??"";
 if(secret.length<32)throw new Error("NGINAP_SESSION_SECRET wajib diisi dengan nilai acak minimal 32 karakter.");
+if(relayToken.length<32)throw new Error("NGINAP_RELAY_TOKEN wajib diisi dengan nilai acak minimal 32 karakter.");
 const app=express();const store=new ExcelStore(path.join(dataDir,"NGINAP_DATABASE.xlsx"),backupDir);const domain=new HotelDomain(store,secret);
 app.disable("x-powered-by");app.use(helmet({crossOriginResourcePolicy:{policy:"same-site"}}));
 const origins=(process.env.NGINAP_ALLOWED_ORIGIN??"http://localhost:3000").split(",").map(x=>x.trim());
 app.use(cors({origin:(origin,cb)=>{if(!origin||origins.includes(origin))cb(null,true);else cb(new Error("Origin not allowed"));},credentials:true}));
+app.use((req,res,next)=>{const provided=String(req.headers["x-nginap-relay-token"]??"");const expected=Buffer.from(relayToken);const actual=Buffer.from(provided);if(actual.length!==expected.length||!timingSafeEqual(actual,expected)){res.status(403).json({error:"Akses relay tidak diizinkan."});return;}next();});
 app.use(express.json({limit:"32kb"}));app.use(cookieParser());app.use(rateLimit({windowMs:60_000,limit:120,standardHeaders:"draft-7",legacyHeaders:false}));
 const authLimiter=rateLimit({windowMs:15*60_000,limit:10,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Terlalu banyak percobaan. Coba lagi nanti."}});
 const publicBookingLimiter=rateLimit({windowMs:15*60_000,limit:8,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Terlalu banyak permintaan reservasi. Coba lagi nanti."}});
