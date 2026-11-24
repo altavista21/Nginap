@@ -1,5 +1,5 @@
-import ExcelJS from "exceljs";
-import { mkdir, copyFile, rename, rm, access, stat } from "node:fs/promises";
+import ExcelJS from "exceljs-hardened";
+import { mkdir, copyFile, rename, rm, access, stat, lstat, readdir } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -14,7 +14,7 @@ class SerialQueue {
   }
 }
 
-export class ExcelStore {
+const MAX_WORKBOOK_BYTES = 25 * 1024 * 1024;\nconst MAX_BACKUPS = 30;\n\nexport class ExcelStore {
   private readonly queue = new SerialQueue();
   constructor(private readonly filePath: string, private readonly backupDir: string) {}
 
@@ -78,7 +78,7 @@ export class ExcelStore {
       await workbook.xlsx.writeFile(temporaryPath);
       if (createBackup) {
         const backupPath = path.join(this.backupDir, "NGINAP_DATABASE-" + new Date().toISOString().replace(/[:.]/g, "-") + ".xlsx");
-        await copyFile(this.filePath, backupPath);
+        await copyFile(this.filePath, backupPath);\n        await this.pruneBackups();
       }
       await rename(temporaryPath, this.filePath);
     } catch (error) {
@@ -87,7 +87,7 @@ export class ExcelStore {
     }
   }
 
-  async read<T>(reader: (workbook: ExcelJS.Workbook) => T | Promise<T>): Promise<T> {
+  private async pruneBackups(): Promise<void> {\n    const files = (await readdir(this.backupDir, { withFileTypes: true }))\n      .filter((entry) => entry.isFile() && /^NGINAP_DATABASE-.*\\.xlsx$/.test(entry.name))\n      .map((entry) => entry.name)\n      .sort((a, b) => b.localeCompare(a));\n    await Promise.all(files.slice(MAX_BACKUPS).map((name) => rm(path.join(this.backupDir, name), { force: true })));\n  }\n\n  async read<T>(reader: (workbook: ExcelJS.Workbook) => T | Promise<T>): Promise<T> {
     return this.queue.run(async () => {
       const workbook = await this.readWorkbook();
       this.validateWorkbook(workbook);
