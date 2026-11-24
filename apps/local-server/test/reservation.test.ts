@@ -34,6 +34,8 @@ test("booking allocation is serialized, idempotent and cancellation holds invent
     const retry=await domain.createBooking({...base,email:winningEmail,idempotencyKey:winningKey},null);
     assert.equal(retry.bookingId,bookingId);
     assert.equal(retry.reused,true);
+    await assert.rejects(domain.createBooking({...base,email:"attacker@example.com",idempotencyKey:winningKey},null),/Kunci transaksi sudah digunakan/i,"an idempotency key must not reveal another guest booking");
+    await assert.rejects(domain.availability("2099-02-31","2099-03-05",1),/Tanggal menginap tidak valid/i,"impossible calendar dates must be rejected");
     await domain.requestCancellation(bookingId,winningEmail,"Change of travel plan");
     const held=await domain.availability(checkIn,checkOut,1);
     assert.equal(held.find(x=>x.typeId==="RT001")?.canBook,false,"pending cancellation must continue to block the room");
@@ -41,6 +43,8 @@ test("booking allocation is serialized, idempotent and cancellation holds invent
     const released=await domain.availability(checkIn,checkOut,1);
     assert.equal(released.find(x=>x.typeId==="RT001")?.canBook,true,"approved cancellation releases inventory");
     const room=(await domain.listRooms())[0];
+    await store.transaction(wb=>{const sheet=wb.getWorksheet("Rooms")!;for(let row=2;row<=sheet.rowCount;row++){if(String(sheet.getRow(row).getCell(1).value)===String(room.RoomID)){sheet.getRow(row).getCell(5).value="Maintenance";break;}}});
+    await assert.rejects(domain.housekeeping(admin,String(room.RoomID),"Inspected"),/kamar maintenance/i,"housekeeping must not release a maintenance room");
     await store.transaction(wb=>{const sheet=wb.getWorksheet("Rooms")!;for(let row=2;row<=sheet.rowCount;row++){if(String(sheet.getRow(row).getCell(1).value)===String(room.RoomID)){sheet.getRow(row).getCell(5).value="Occupied";break;}}});
     const occupiedAvailability=await domain.availability(checkIn,checkOut,1);
     assert.equal(occupiedAvailability.find(x=>x.typeId==="RT001")?.canBook,false,"occupied room must never be offered as available");
