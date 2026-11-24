@@ -14,6 +14,8 @@ foreach ($directory in @($DataDirectory, $BackupDirectory)) {
   $resolved = [System.IO.Path]::GetFullPath($directory)
   New-Item -ItemType Directory -Force -Path $resolved | Out-Null
 
+  & icacls.exe $resolved /reset /T /C | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "Failed to reset existing ACLs on $resolved" }
   & icacls.exe $resolved /inheritance:r /T /C | Out-Null
   if ($LASTEXITCODE -ne 0) { throw "Failed to disable inherited ACLs on $resolved" }
 
@@ -23,6 +25,8 @@ foreach ($directory in @($DataDirectory, $BackupDirectory)) {
 
 $environmentPath = [System.IO.Path]::GetFullPath($EnvironmentFile)
 if (-not (Test-Path -LiteralPath $environmentPath -PathType Leaf)) { throw "Environment file not found: $environmentPath" }
+& icacls.exe $environmentPath /reset | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Failed to reset existing ACLs on $environmentPath" }
 & icacls.exe $environmentPath /inheritance:r | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "Failed to disable inherited ACLs on $environmentPath" }
 & icacls.exe $environmentPath /grant:r "${ServiceAccount}:R" "*S-1-5-18:F" "*S-1-5-32-544:F" | Out-Null
