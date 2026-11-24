@@ -37,7 +37,8 @@ export function assertSafeXlsxXml(entryName: string, xml: string): void {
   }
 }
 
-export function assertSafeXlsxArchive(input: Uint8Array): void {\n  const buffer = Buffer.from(input);
+export function assertSafeXlsxArchive(input: Uint8Array): void {
+  const buffer = Buffer.from(input);
   if (buffer.byteLength < 22 || buffer.byteLength > MAX_ARCHIVE_BYTES || buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
     throw new Error("Workbook archive is not a permitted XLSX file.");
   }
