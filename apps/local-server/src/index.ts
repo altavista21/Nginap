@@ -3,10 +3,11 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { timingSafeEqual } from "node:crypto";
+import { isIP } from "node:net";
 import { z } from "zod";
 import { ExcelStore } from "./storage/excel-store.js";
 import { HotelDomain } from "./domain.js";
@@ -23,10 +24,11 @@ if(secret.length<32)throw new Error("NGINAP_SESSION_SECRET wajib diisi dengan ni
 if(relayToken.length<32)throw new Error("NGINAP_RELAY_TOKEN wajib diisi dengan nilai acak minimal 32 karakter.");
 const app=express();const store=new ExcelStore(path.join(dataDir,"NGINAP_DATABASE.xlsx"),backupDir);const domain=new HotelDomain(store,secret);
 app.disable("x-powered-by");app.use(helmet({crossOriginResourcePolicy:{policy:"same-site"}}));
+function clientRateLimitKey(req:express.Request):string{const forwarded=req.get("x-nginap-client-ip")??"";const ip=isIP(forwarded)?forwarded:(req.ip??req.socket.remoteAddress??"127.0.0.1");return ipKeyGenerator(ip);}
 const origins=(process.env.NGINAP_ALLOWED_ORIGIN??"http://localhost:3000").split(",").map(x=>x.trim());
 app.use(cors({origin:(origin,cb)=>{if(!origin||origins.includes(origin))cb(null,true);else cb(new Error("Origin not allowed"));},credentials:true}));
 app.use((req,res,next)=>{const provided=String(req.headers["x-nginap-relay-token"]??"");const expected=Buffer.from(relayToken);const actual=Buffer.from(provided);if(actual.length!==expected.length||!timingSafeEqual(actual,expected)){res.status(403).json({error:"Akses relay tidak diizinkan."});return;}next();});
-app.use(express.json({limit:"32kb"}));app.use(cookieParser());app.use(rateLimit({windowMs:60_000,limit:120,standardHeaders:"draft-7",legacyHeaders:false}));
+app.use(express.json({limit:"32kb"}));app.use(cookieParser());app.use(rateLimit({windowMs:60_000,limit:120,standardHeaders:"draft-7",legacyHeaders:false,keyGenerator:clientRateLimitKey}));
 const authLimiter=rateLimit({windowMs:15*60_000,limit:10,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Terlalu banyak percobaan. Coba lagi nanti."}});
 const publicBookingLimiter=rateLimit({windowMs:15*60_000,limit:8,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Terlalu banyak permintaan reservasi. Coba lagi nanti."}});
 const cookieName="nginap_session";
@@ -45,8 +47,8 @@ app.post("/api/auth/logout",(req,res)=>{res.clearCookie(cookieName,{httpOnly:tru
 app.get("/api/auth/me",requireAuth(),(req,res)=>res.json({user:(req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor}));
 app.get("/api/public/room-types",async(req,res,next)=>{try{const checkIn=String(req.query.checkIn??"");const checkOut=String(req.query.checkOut??"");const count=Number(req.query.roomCount??1);res.json({roomTypes:await domain.availability(checkIn,checkOut,count)});}catch(e){next(e);}});
 app.post("/api/public/bookings",publicBookingLimiter,async(req,res,next)=>{try{const data=validate(bookingSchema,req.body);const result=await domain.createBooking(data,null);res.status(result.reused?200:201).json(result);}catch(e){next(e);}});
-app.post("/api/public/bookings/lookup",async(req,res,next)=>{try{const data=validate(z.object({bookingId:z.string().min(5),email:z.string().email()}),req.body);res.json(await domain.lookupBooking(data.bookingId,data.email));}catch(e){next(e);}});
-app.post("/api/public/cancellations",publicBookingLimiter,async(req,res,next)=>{try{const data=validate(cancellationSchema,req.body);await domain.requestCancellation(data.bookingId,data.email,data.reason);res.json({success:true,status:"CancellationRequested"});}catch(e){next(e);}});
+app.post("/api/public/bookings/lookup",lookupLimiter,async(req,res,next)=>{try{const data=validate(z.object({bookingId:z.string().min(5),email:z.string().email()}),req.body);res.json(await domain.lookupBooking(data.bookingId,data.email));}catch(e){next(e);}});
+app.post("/api/public/cancellations",cancellationLimiter,async(req,res,next)=>{try{const data=validate(cancellationSchema,req.body);await domain.requestCancellation(data.bookingId,data.email,data.reason);res.json({success:true,status:"CancellationRequested"});}catch(e){next(e);}});
 app.get("/api/dashboard",requireAuth(),async(_req,res,next)=>{try{res.json(await domain.dashboard());}catch(e){next(e);}});
 app.get("/api/room-types",requireAuth(),async(_req,res,next)=>{try{res.json({roomTypes:(await domain.dashboard()).roomTypes});}catch(e){next(e);}});
 app.patch("/api/room-types/:id",requireAuth(["admin","superadmin"]),async(req,res,next)=>{try{const data=validate(z.object({price:z.number().positive(),capacity:z.number().int().min(1).max(10),description:z.string().max(250)}),req.body);await domain.setRoomTypeRate((req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor,routeParam(req,"id"),data.price,data.capacity,data.description);res.json({success:true});}catch(e){next(e);}});
