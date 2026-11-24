@@ -10,7 +10,7 @@ import { timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import { z } from "zod";
 import { ExcelStore } from "./storage/excel-store.js";
-import { HotelDomain } from "./domain.js";
+import { DomainError, HotelDomain } from "./domain.js";
 
 const currentDir=path.dirname(fileURLToPath(import.meta.url));
 const rootDir=path.resolve(currentDir,"..");
@@ -40,7 +40,7 @@ const cookieName="nginap_session";
 function actor(req:express.Request){return domain.readSession(req.cookies?.[cookieName]??req.headers.authorization?.replace(/^Bearer /,""));}
 function routeParam(req:express.Request,name:string):string{const value=req.params[name];return Array.isArray(value)?(value[0]??""):(value??"");}
 function requireAuth(roles:string[]=[]):express.RequestHandler{return(req,res,next)=>{const user=actor(req);if(!user){res.status(401).json({error:"Silakan login."});return;}if(roles.length&&!roles.includes(user.role)){res.status(403).json({error:"Akses tidak diizinkan."});return;}(req as express.Request&{actor:typeof user}).actor=user;next();};}
-function validate<T>(schema:z.ZodType<T>,body:unknown):T{const parsed=schema.safeParse(body);if(!parsed.success)throw new Error(parsed.error.issues.map(x=>x.message).join("; "));return parsed.data;}
+class RequestValidationError extends Error {}\nfunction validate<T>(schema:z.ZodType<T>,body:unknown):T{const parsed=schema.safeParse(body);if(!parsed.success)throw new RequestValidationError(parsed.error.issues.map(x=>x.message).join("; "));return parsed.data;}
 const loginSchema=z.object({username:z.string().min(3).max(60),password:z.string().min(1).max(200)});
 const bookingSchema=z.object({name:z.string().trim().min(2).max(100),email:z.string().email().max(160),phone:z.string().min(8).max(30),checkIn:z.string(),checkOut:z.string(),roomTypeId:z.string().min(1),roomCount:z.number().int().min(1).max(10),idempotencyKey:z.string().min(12).max(100)});
 const staffSchema=z.object({username:z.string().min(3).max(60),password:z.string().min(12).max(200),role:z.enum(["admin","receptionist"])});
@@ -70,7 +70,7 @@ app.post("/api/staff",requireAuth(["superadmin"]),async(req,res,next)=>{try{cons
 app.get("/api/reports",requireAuth(["admin","superadmin"]),async(_req,res,next)=>{try{res.json(await domain.reports());}catch(e){next(e);}});
 app.get("/api/export/workbook",requireAuth(["admin","superadmin"]),async(_req,res,next)=>{try{const data=await domain.exportWorkbook();res.setHeader("Content-Type","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");res.setHeader("Content-Disposition",'attachment; filename="NGINAP_DATABASE.xlsx"');res.send(data);}catch(e){next(e);}});
 app.use((_req,res)=>res.status(404).json({error:"Endpoint tidak ditemukan."}));
-app.use((error:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{const message=error instanceof Error?error.message:"Terjadi kesalahan.";const client=["Workbook schema invalid","EACCES","ENOENT"].some(x=>message.includes(x));console.error("Nginap API:",message);res.status(client?503:400).json({error:client?"Layanan penyimpanan sedang bermasalah.":message});});
+app.use((error:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{const message=error instanceof Error?error.message:"Unknown error";const storage=message.includes("Workbook schema invalid")||message.includes("EACCES")||message.includes("ENOENT");const expected=error instanceof DomainError||error instanceof RequestValidationError;console.error("Nginap API:",message);res.status(storage?503:expected?400:500).json({error:storage?"Layanan penyimpanan sedang bermasalah.":expected?message:"Terjadi kesalahan internal."});});
 await store.initialize();
 const bootstrapUser=process.env.NGINAP_BOOTSTRAP_ADMIN_USER;const bootstrapPass=process.env.NGINAP_BOOTSTRAP_ADMIN_PASSWORD;
 if(bootstrapUser&&bootstrapPass){try{await domain.bootstrap(bootstrapUser,bootstrapPass);console.log("Initial superadmin created.");}catch(e){if(!(e instanceof Error)||!e.message.includes("sudah tersedia"))throw e;}}
