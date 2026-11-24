@@ -1,4 +1,4 @@
-import express from "express";
+import "dotenv/config";\nimport express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
