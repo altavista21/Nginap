@@ -14,6 +14,7 @@ test("booking allocation is serialized, idempotent and cancellation holds invent
     const domain=new HotelDomain(store,"test-session-secret-that-is-long-enough-123456");
     await domain.bootstrap("superadmin","VeryStrongTestPassword123!");
     const admin=await domain.login("superadmin","VeryStrongTestPassword123!");
+    assert.equal(await domain.isActiveActor(admin),true,"new staff sessions must be active");
     await domain.setRoomTypeRate(admin,"RT001",450000,2,"Standard room");
     await domain.saveRoom(admin,{roomNumber:"101",typeId:"RT001",floor:"1"});
     const checkIn=new Date(Date.now()+2*86400000).toLocaleDateString("en-CA",{timeZone:"Asia/Jakarta"});
