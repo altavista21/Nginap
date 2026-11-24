@@ -27,11 +27,14 @@ test("booking allocation is serialized, idempotent and cancellation holds invent
     assert.equal(attempts.filter(x=>x.status==="rejected").length,1);
     const winner=attempts.find(x=>x.status==="fulfilled");
     assert.ok(winner&&winner.status==="fulfilled");
+    const winnerIndex=attempts.indexOf(winner);
+    const winningEmail=winnerIndex===0?"one@example.com":"two@example.com";
+    const winningKey=winnerIndex===0?"booking-request-key-001":"booking-request-key-002";
     const bookingId=winner.value.bookingId;
-    const retry=await domain.createBooking({...base,email:"one@example.com",idempotencyKey:"booking-request-key-001"},null);
+    const retry=await domain.createBooking({...base,email:winningEmail,idempotencyKey:winningKey},null);
     assert.equal(retry.bookingId,bookingId);
     assert.equal(retry.reused,true);
-    await domain.requestCancellation(bookingId,"one@example.com","Change of travel plan");
+    await domain.requestCancellation(bookingId,winningEmail,"Change of travel plan");
     const held=await domain.availability(checkIn,checkOut,1);
     assert.equal(held.find(x=>x.typeId==="RT001")?.canBook,false,"pending cancellation must continue to block the room");
     await domain.decideCancellation(admin,bookingId,true,"Approved by test");
