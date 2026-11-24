@@ -49,7 +49,10 @@ export function assertSafeXlsxArchive(buffer: Buffer): void {
   }
   if (eocd < 0) throw new Error("Workbook ZIP directory is invalid.");
 
-  const archiveCommentLength = buffer.readUInt16LE(eocd + 20);\n  if (eocd + 22 + archiveCommentLength !== buffer.length) throw new Error("Workbook ZIP end record is invalid.");\n\n  const disk = buffer.readUInt16LE(eocd + 4);
+  const archiveCommentLength = buffer.readUInt16LE(eocd + 20);
+  if (eocd + 22 + archiveCommentLength !== buffer.length) throw new Error("Workbook ZIP end record is invalid.");
+
+  const disk = buffer.readUInt16LE(eocd + 4);
   const centralDisk = buffer.readUInt16LE(eocd + 6);
   const entriesOnDisk = buffer.readUInt16LE(eocd + 8);
   const entriesTotal = buffer.readUInt16LE(eocd + 10);
