@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import path from "node:path";
@@ -21,7 +22,7 @@ const app=express();const store=new ExcelStore(path.join(dataDir,"NGINAP_DATABAS
 app.disable("x-powered-by");app.use(helmet({crossOriginResourcePolicy:{policy:"same-site"}}));
 const origins=(process.env.NGINAP_ALLOWED_ORIGIN??"http://localhost:3000").split(",").map(x=>x.trim());
 app.use(cors({origin:(origin,cb)=>{if(!origin||origins.includes(origin))cb(null,true);else cb(new Error("Origin not allowed"));},credentials:true}));
-app.use(express.json({limit:"32kb"}));app.use(rateLimit({windowMs:60_000,limit:120,standardHeaders:"draft-7",legacyHeaders:false}));
+app.use(express.json({limit:"32kb"}));app.use(cookieParser());app.use(rateLimit({windowMs:60_000,limit:120,standardHeaders:"draft-7",legacyHeaders:false}));
 const authLimiter=rateLimit({windowMs:15*60_000,limit:10,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Terlalu banyak percobaan. Coba lagi nanti."}});
 const cookieName="nginap_session";
 function actor(req:express.Request){return domain.readSession(req.cookies?.[cookieName]??req.headers.authorization?.replace(/^Bearer /,""));}
