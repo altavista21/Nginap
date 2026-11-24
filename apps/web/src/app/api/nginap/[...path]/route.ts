@@ -28,12 +28,13 @@ async function proxy(request: NextRequest, context: RouteContext) {
   // Same-origin proxy only: block cross-site fetches and foreign Origin headers.
   const fetchSite = request.headers.get("sec-fetch-site");
   const origin = request.headers.get("origin");
-  if (fetchSite === "cross-site" || (origin && origin !== request.nextUrl.origin)) {
+  const unsafeMethod = !["GET", "HEAD"].includes(request.method);
+  if ((fetchSite && fetchSite !== "same-origin") || (origin && origin !== request.nextUrl.origin) || (unsafeMethod && origin !== request.nextUrl.origin)) {
     return NextResponse.json({ error: "Permintaan tidak diizinkan." }, { status: 403 });
   }
 
   const { path = [] } = await context.params;
-  if (!path.length || path[0] !== "api" || path.some(segment => !/^[a-zA-Z0-9._-]+$/.test(segment))) {
+  if (!path.length || path[0] !== "api" || path.some(segment => segment === "." || segment === ".." || !/^[a-zA-Z0-9._-]+$/.test(segment))) {
     return NextResponse.json({ error: "Path API tidak valid." }, { status: 400 });
   }
 
