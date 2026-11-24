@@ -66,7 +66,7 @@ export class ExcelStore {
     const archive = await readFile(this.filePath);
     assertSafeXlsxArchive(archive);
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(archive, { maxEntryUncompressedSize: 32 * 1024 * 1024, maxTotalUncompressedSize: 128 * 1024 * 1024 });
+    await workbook.xlsx.load(archive, { maxEntryUncompressedSize: 32 * 1024 * 1024, maxTotalUncompressedSize: 128 * 1024 * 1024, maxMergeCells: 10_000, maxDataValidationCells: 100_000, maxDefinedNameCells: 100_000 });
     return workbook;
   }
 
