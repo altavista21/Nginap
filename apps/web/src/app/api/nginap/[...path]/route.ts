@@ -50,7 +50,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
     }
     const reader = request.body?.getReader();
     if (reader) {
-      const chunks: Uint8Array[] = [];
+      const chunks: ArrayBuffer[] = [];
       let total = 0;
       while (true) {
         const { done, value } = await reader.read();
@@ -60,7 +60,9 @@ async function proxy(request: NextRequest, context: RouteContext) {
           await reader.cancel();
           return NextResponse.json({ error: "Ukuran permintaan terlalu besar." }, { status: 413 });
         }
-        chunks.push(value);
+        const chunkCopy = new ArrayBuffer(value.byteLength);
+        new Uint8Array(chunkCopy).set(value);
+        chunks.push(chunkCopy);
       }
       body = new Blob(chunks);
     }
