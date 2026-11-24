@@ -26,11 +26,13 @@ Scope: Next.js public web app, same-origin relay, Express local API, staff sessi
 
 1. **Trusted client IP must be verified in the actual hosting environment.** The proxy uses the platform-provided `x-real-ip` value and only forwards it after IP syntax validation. Confirm the hosting edge overwrites this header rather than accepting a visitor-supplied value. If this cannot be proven, use a managed rate-limit service or another trusted edge mechanism. Local in-memory rate limits are not distributed across multiple server instances.
 2. **Excel contains personal data in plaintext.** Protect the Windows account and data/backup directories with restrictive NTFS ACLs, enable BitLocker on the hotel computer, and keep encrypted off-device backups. Workbook export must remain restricted to admin/superadmin.
-3. **No production penetration test has been performed.** Automated tests and source review do not prove the deployed system is secure.
+3. **ExcelJS 4.4.0 has a separately reported malformed-workbook memory-exhaustion issue (CVE-2026-128344).** Nginap does not accept workbook uploads from guests, so the reported attack path would require someone to replace or tamper with the local workbook. Keep the data directory writable only by the hotel service account and trusted administrators; never point Nginap at an untrusted workbook. Reassess ExcelJS or add a safe workbook pre-validation layer before enabling any import/upload feature.
+4. **No production penetration test has been performed.** Automated tests and source review do not prove the deployed system is secure.
 4. **No live tunnel or deployed end-to-end test has been performed.** Relay configuration, cookie behavior, host headers, client IP propagation and failure behavior must be tested on the actual hotel PC and production host.
 5. **Staff account disablement does not yet have a dedicated dashboard control.** The API now checks the live Users row and role on every authenticated request, so changing a staff status or role in the workbook invalidates the previous session immediately. Sessions also expire after eight hours.
 6. **Login and public endpoint throttling require monitoring.** Tune limits only after observing normal hotel traffic. Do not disable throttling to work around shared-IP behavior.
-7. **Keep secrets outside Git.** Use unique session, relay and bootstrap secrets. Remove the bootstrap key after initial administrator creation and rotate any secret that was exposed.
+7. **The repository does not yet commit a package-lock.json.** CI currently runs `npm install`, so transitive versions can change between builds even though the current npm audit is clean. Commit a reviewed lockfile and switch CI/production installs to `npm ci` before the production rollout.
+8. **Keep secrets outside Git.** Use unique session, relay and bootstrap secrets. Remove the bootstrap key after initial administrator creation and rotate any secret that was exposed.
 
 ## Verification required
 
