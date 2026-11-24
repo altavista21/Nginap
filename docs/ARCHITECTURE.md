@@ -7,7 +7,7 @@
 - Workbook: private local file owned exclusively by the hotel node.
 - Secure connector: an outbound authenticated connection from the hotel node to a public API gateway/relay. The hotel computer must not accept arbitrary inbound internet traffic.
 
-The initial repository contains the web shell and local service foundation. The public relay, authentication, and reservation APIs are future implementation phases.
+The repository now includes a same-origin Next.js API proxy, a server-only shared relay token, and a local API middleware that rejects requests without that token. Localtonet HTTP/HTTPS is the supported outbound tunnel target. Provider account setup, secret provisioning, Vercel environment configuration, and live end-to-end verification remain operational steps.
 
 ## 2. Excel storage rules
 
