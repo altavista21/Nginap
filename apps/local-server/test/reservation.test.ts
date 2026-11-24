@@ -40,6 +40,11 @@ test("booking allocation is serialized, idempotent and cancellation holds invent
     await domain.decideCancellation(admin,bookingId,true,"Approved by test");
     const released=await domain.availability(checkIn,checkOut,1);
     assert.equal(released.find(x=>x.typeId==="RT001")?.canBook,true,"approved cancellation releases inventory");
+    const room=(await domain.listRooms())[0];
+    await store.transaction(wb=>{const sheet=wb.getWorksheet("Rooms")!;for(let row=2;row<=sheet.rowCount;row++){if(String(sheet.getRow(row).getCell(1).value)===String(room.RoomID)){sheet.getRow(row).getCell(5).value="Occupied";break;}}});
+    const occupiedAvailability=await domain.availability(checkIn,checkOut,1);
+    assert.equal(occupiedAvailability.find(x=>x.typeId==="RT001")?.canBook,false,"occupied room must never be offered as available");
+    await assert.rejects(domain.housekeeping(admin,String(room.RoomID),"Inspected"),/kamar yang sedang ditempati/i,"housekeeping must not release an occupied room");
     const status=await domain.workbookStatus();
     assert.equal(status.initialized,true);
     assert.ok(status.sheets.includes("Reservations"));
