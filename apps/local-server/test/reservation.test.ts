@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { ExcelStore } from "../src/storage/excel-store.js";
 import { HotelDomain } from "../src/domain.js";
-import { assertSafeXlsxArchive, assertSafeXlsxXml } from "../src/storage/xlsx-preflight.js";\nimport { deflateRawSync } from "node:zlib";
+import { assertSafeXlsxArchive, assertSafeXlsxXml } from "../src/storage/xlsx-preflight.js";
+import { deflateRawSync } from "node:zlib";
 
 
 function makeZipEntry(name: string, content: string): Buffer {
@@ -34,7 +35,8 @@ function makeZipEntry(name: string, content: string): Buffer {
   eocd.writeUInt32LE(central.length, 12); eocd.writeUInt32LE(local.length + compressed.length, 16);
   return Buffer.concat([local, compressed, central, eocd]);
 }
-\ntest("booking allocation is serialized, idempotent and cancellation holds inventory until admin approval", async () => {
+
+test("booking allocation is serialized, idempotent and cancellation holds inventory until admin approval", async () => {
   const dir=await mkdtemp(path.join(os.tmpdir(),"nginap-test-"));
   try {
     const store=new ExcelStore(path.join(dir,"data","NGINAP_DATABASE.xlsx"),path.join(dir,"backups"));
