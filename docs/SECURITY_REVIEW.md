@@ -8,7 +8,7 @@ Scope: Next.js public web app, same-origin relay, Express local API, staff sessi
 | Dependency | Risk | Remediation / status |
 |---|---|---|
 | Next.js was declared at 15.5.27, within upstream affected ranges for critical image-optimization RCE and later response/cookie handling advisories | A publicly reachable framework endpoint could expose the app to upstream vulnerabilities even when the hotel API is protected | Pin Next.js to 15.5.29, the patched 15.x release identified by upstream advisories; keep monitoring security releases |
-| npm audit initially reported 2 high and 3 moderate dependency advisories, including PostCSS, Zod and UUID | Vulnerable transitive and direct dependencies increase exposure | Upgrade Zod to 4.6.7, express-rate-limit to 8.7.5, override PostCSS to 8.5.33+ and UUID to 11.1.1+; the follow-up CI audit reported 0 advisories |
+| npm audit initially reported 2 high and 3 moderate dependency advisories, including PostCSS, Zod and UUID | Vulnerable transitive and direct dependencies increase exposure | Upgrade Zod to 4.6.7, express-rate-limit to 8.7.5, override PostCSS to 8.5.33+, UUID to 11.1.1+, tmp to 0.2.7+ and minimatch to 11.0.1+; latest completed audit on this branch reported 0 advisories |
 
 | Finding | Risk | Remediation |
 |---|---|---|
@@ -30,7 +30,7 @@ Scope: Next.js public web app, same-origin relay, Express local API, staff sessi
 - Keep only the newest 30 automatic backups to reduce unbounded disk growth.
 - Added a Windows PowerShell script to remove inherited ACLs and grant write access only to the service account, SYSTEM and local Administrators.
 - Corrected logout cookie deletion to use the same Secure setting as the production login cookie.
-- Added npm lockfile generation for the dedicated security branch and changed CI to use `npm ci` once the lockfile exists.
+- Added a committed npm lockfile and changed CI to require `npm ci` for reproducible installs.\n- The public proxy forwards client IP only when `NGINAP_TRUSTED_EDGE=vercel`; Vercel documents that `x-real-ip` mirrors its platform-overwritten `x-forwarded-for` header, preventing visitor-supplied IP spoofing. On other hosts the setting stays disabled until ingress behavior is verified.
 
 ## Important residual risks and go-live blockers
 
