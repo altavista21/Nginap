@@ -38,7 +38,7 @@ function update(sheet: ExcelJS.Worksheet, key: string, value: string, patch: Row
   }
   return false;
 }
-function dateOnly(value: string): boolean { return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value+"T00:00:00Z")); }
+function dateOnly(value: string): boolean { if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false; const parsed = new Date(value+"T00:00:00Z"); return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0,10) === value; }
 function validStay(checkIn:string,checkOut:string):void {
   if(!dateOnly(checkIn)||!dateOnly(checkOut)||checkOut<=checkIn)throw new Error("Tanggal menginap tidak valid.");
   const today=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Jakarta"});
