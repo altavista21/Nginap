@@ -1,7 +1,7 @@
 # Instalasi Nginap di Komputer Hotel
 
 ## Catatan penting
-Nginap versi ini berjalan sebagai aplikasi lokal pada komputer hotel. Excel adalah penyimpanan utama. Website publik di Vercel belum dapat terhubung langsung ke Excel di komputer hotel. Jangan membuka port 4100 ke internet dan jangan mengatur port forwarding router. Untuk menerima reservasi dari internet, perlu gateway/relay outbound dengan TLS dan identitas perangkat yang belum termasuk rilis ini.
+Nginap versi ini berjalan sebagai aplikasi lokal pada komputer hotel. Excel adalah penyimpanan utama. Website publik terhubung melalui Next.js server-side proxy dan Localtonet HTTP/HTTPS outbound tunnel. API lokal hanya menerima shared relay token. Jangan membuka port 4100 ke internet dan jangan mengatur port forwarding router. Ikuti `docs/SECURE_RELAY.md` sebelum mengaktifkan booking publik.
 
 Windows 10 sudah melewati akhir dukungan standar pada 14 Oktober 2025. Gunakan Windows yang masih didukung atau perangkat Windows 10 yang masih tercakup ESU aktif.
 
@@ -19,7 +19,7 @@ Windows 10 sudah melewati akhir dukungan standar pada 14 Oktober 2025. Gunakan W
    ```powershell
    [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
    ```
-5. Isi `NGINAP_SESSION_SECRET` dengan secret pertama (minimal 32 karakter), `NGINAP_BOOTSTRAP_KEY` dengan secret kedua (minimal 24 karakter), dan sesuaikan `NGINAP_ALLOWED_ORIGIN=http://localhost:3000`.
+5. Isi `NGINAP_SESSION_SECRET` dengan secret pertama (minimal 32 karakter), `NGINAP_BOOTSTRAP_KEY` dengan secret kedua (minimal 24 karakter), tambahkan `NGINAP_RELAY_TOKEN` (secret acak berbeda, minimal 32 karakter), set `NGINAP_COOKIE_SECURE=true`, dan sesuaikan `NGINAP_ALLOWED_ORIGIN=http://localhost:3000`.
 6. Jalankan `npm install`.
 7. Jalankan `npm run dev`.
 8. Buka `http://localhost:3000` untuk tamu dan `http://localhost:3000/staff` untuk staf.
@@ -40,7 +40,7 @@ Segera hapus `NGINAP_BOOTSTRAP_KEY` dari file `.env` setelah akun pertama dibuat
 - Simpan backup tambahan terenkripsi ke media terpisah dan uji pemulihan sebelum operasional.
 
 ## API
-Health: `GET /health`. Endpoint lain dijelaskan dalam PRD dan source `apps/local-server/src/index.ts`.
+Health: `GET /health` memerlukan header `X-Nginap-Relay-Token`. Endpoint lain dijelaskan dalam PRD dan source `apps/local-server/src/index.ts`. Browser memakai proxy same-origin `/api/nginap/*`, bukan mengakses port 4100 secara langsung.
 
 ## Belum boleh dipakai untuk produksi publik
 Sebelum go-live, wajib menyelesaikan relay internet aman, uji build/CI, uji Windows, pemulihan backup, file lock, disk penuh, keamanan, dan UAT hotel. Booking hanya aman bila semua request reservasi masuk ke satu service instance yang sama.

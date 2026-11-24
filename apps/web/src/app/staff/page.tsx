@@ -1,7 +1,7 @@
 "use client";
 import { useEffect,useState, type FormEvent } from "react";
 import { BedDouble, CalendarDays, CircleDollarSign, LogOut, RefreshCw, ShieldCheck } from "lucide-react";
-const API=process.env.NEXT_PUBLIC_LOCAL_API_URL??"http://127.0.0.1:4100";
+const API="/api/nginap";
 type User={username:string;role:string};type Reservation={BookingID:string;CheckIn:string;CheckOut:string;Status:string;Total:number;guestName:string;guestEmail:string;rooms:string[]};
 async function request(path:string,init:RequestInit={}){const r=await fetch(API+path,{...init,credentials:"include",headers:{"Content-Type":"application/json",...init.headers}});const d=await r.json();if(!r.ok)throw new Error(d.error??"Permintaan gagal");return d;}
 export default function StaffPage(){const [user,setUser]=useState<User|null>(null);const [username,setUsername]=useState("");const [password,setPassword]=useState("");const [reservations,setReservations]=useState<Reservation[]>([]);const [dashboard,setDashboard]=useState<any>(null);const [error,setError]=useState("");const [busy,setBusy]=useState(false);const [report,setReport]=useState<any>(null);const [rooms,setRooms]=useState<any[]>([]);const [roomNumber,setRoomNumber]=useState("");const [roomTypeId,setRoomTypeId]=useState("RT001");const [floor,setFloor]=useState("1");const [rateValues,setRateValues]=useState<Record<string,string>>({});const [walkIn,setWalkIn]=useState({name:"",email:"",phone:"",checkIn:"",checkOut:"",roomTypeId:"RT001",roomCount:1});const [paymentId,setPaymentId]=useState("");const [paymentAmount,setPaymentAmount]=useState("");const [paymentMethod,setPaymentMethod]=useState("Cash");const [staffDraft,setStaffDraft]=useState({username:"",password:"",role:"receptionist"});
