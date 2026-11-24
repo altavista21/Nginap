@@ -1,4 +1,5 @@
-import "dotenv/config";\nimport express from "express";
+import "dotenv/config";
+import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
@@ -23,7 +24,8 @@ app.disable("x-powered-by");app.use(helmet({crossOriginResourcePolicy:{policy:"s
 const origins=(process.env.NGINAP_ALLOWED_ORIGIN??"http://localhost:3000").split(",").map(x=>x.trim());
 app.use(cors({origin:(origin,cb)=>{if(!origin||origins.includes(origin))cb(null,true);else cb(new Error("Origin not allowed"));},credentials:true}));
 app.use(express.json({limit:"32kb"}));app.use(cookieParser());app.use(rateLimit({windowMs:60_000,limit:120,standardHeaders:"draft-7",legacyHeaders:false}));
-const authLimiter=rateLimit({windowMs:15*60_000,limit:10,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Terlalu banyak percobaan. Coba lagi nanti."}});\nconst publicBookingLimiter=rateLimit({windowMs:15*60_000,limit:8,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Terlalu banyak permintaan reservasi. Coba lagi nanti."}});
+const authLimiter=rateLimit({windowMs:15*60_000,limit:10,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Terlalu banyak percobaan. Coba lagi nanti."}});
+const publicBookingLimiter=rateLimit({windowMs:15*60_000,limit:8,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Terlalu banyak permintaan reservasi. Coba lagi nanti."}});
 const cookieName="nginap_session";
 function actor(req:express.Request){return domain.readSession(req.cookies?.[cookieName]??req.headers.authorization?.replace(/^Bearer /,""));}
 function requireAuth(roles:string[]=[]):express.RequestHandler{return(req,res,next)=>{const user=actor(req);if(!user){res.status(401).json({error:"Silakan login."});return;}if(roles.length&&!roles.includes(user.role)){res.status(403).json({error:"Akses tidak diizinkan."});return;}(req as express.Request&{actor:typeof user}).actor=user;next();};}
@@ -42,7 +44,9 @@ app.post("/api/public/bookings",publicBookingLimiter,async(req,res,next)=>{try{c
 app.post("/api/public/bookings/lookup",async(req,res,next)=>{try{const data=validate(z.object({bookingId:z.string().min(5),email:z.string().email()}),req.body);res.json(await domain.lookupBooking(data.bookingId,data.email));}catch(e){next(e);}});
 app.post("/api/public/cancellations",publicBookingLimiter,async(req,res,next)=>{try{const data=validate(cancellationSchema,req.body);await domain.requestCancellation(data.bookingId,data.email,data.reason);res.json({success:true,status:"CancellationRequested"});}catch(e){next(e);}});
 app.get("/api/dashboard",requireAuth(),async(_req,res,next)=>{try{res.json(await domain.dashboard());}catch(e){next(e);}});
-app.get("/api/room-types",requireAuth(),async(_req,res,next)=>{try{res.json({roomTypes:(await domain.dashboard()).roomTypes});}catch(e){next(e);}});\napp.patch("/api/room-types/:id",requireAuth(["admin","superadmin"]),async(req,res,next)=>{try{const data=validate(z.object({price:z.number().positive(),capacity:z.number().int().min(1).max(10),description:z.string().max(250)}),req.body);await domain.setRoomTypeRate((req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor,req.params.id,data.price,data.capacity,data.description);res.json({success:true});}catch(e){next(e);}});\napp.get("/api/rooms",requireAuth(),async(_req,res,next)=>{try{res.json({rooms:await domain.listRooms()});}catch(e){next(e);}});
+app.get("/api/room-types",requireAuth(),async(_req,res,next)=>{try{res.json({roomTypes:(await domain.dashboard()).roomTypes});}catch(e){next(e);}});
+app.patch("/api/room-types/:id",requireAuth(["admin","superadmin"]),async(req,res,next)=>{try{const data=validate(z.object({price:z.number().positive(),capacity:z.number().int().min(1).max(10),description:z.string().max(250)}),req.body);await domain.setRoomTypeRate((req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor,req.params.id,data.price,data.capacity,data.description);res.json({success:true});}catch(e){next(e);}});
+app.get("/api/rooms",requireAuth(),async(_req,res,next)=>{try{res.json({rooms:await domain.listRooms()});}catch(e){next(e);}});
 app.post("/api/rooms",requireAuth(["admin","superadmin"]),async(req,res,next)=>{try{const data=validate(z.object({roomNumber:z.string().min(1).max(20),typeId:z.string(),floor:z.string().max(20),notes:z.string().max(200).optional()}),req.body);await domain.saveRoom((req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor,data);res.status(201).json({success:true});}catch(e){next(e);}});
 app.get("/api/reservations",requireAuth(),async(_req,res,next)=>{try{res.json({reservations:await domain.listReservations()});}catch(e){next(e);}});
 app.post("/api/reservations/walk-in",requireAuth(["receptionist","admin","superadmin"]),async(req,res,next)=>{try{const data=validate(bookingSchema,req.body);const result=await domain.createBooking(data,(req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor);res.status(201).json(result);}catch(e){next(e);}});
