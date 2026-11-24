@@ -28,7 +28,7 @@ Scope: Next.js public web app, same-origin relay, Express local API, staff sessi
 - Added XLSX ZIP preflight: maximum 25 MiB workbook, maximum 32 MiB per expanded ZIP entry, maximum 128 MiB total expanded data, bounded XML inspection, and rejection of huge merged ranges or drawing anchors before ExcelJS parses the workbook.
 - Reject workbook symlinks and non-regular files.
 - Keep only the newest 30 automatic backups to reduce unbounded disk growth.
-- Added a Windows PowerShell script to remove inherited ACLs and grant write access only to the service account, SYSTEM and local Administrators.
+- Added a Windows PowerShell script to reset existing ACLs, grant the service account Modify on data/backup folders and Read on `.env`, and retain Full Control for SYSTEM and local Administrators.
 - Corrected logout cookie deletion to use the same Secure setting as the production login cookie.
 - Added a committed npm lockfile and changed CI to require `npm ci` for reproducible installs.
 - The public proxy forwards client IP only when `NGINAP_TRUSTED_EDGE=vercel`; Vercel documents that `x-real-ip` mirrors its platform-overwritten `x-forwarded-for` header, preventing visitor-supplied IP spoofing. On other hosts the setting stays disabled until ingress behavior is verified.
