@@ -1,35 +1,47 @@
 # Nginap
 
-Hotel Reservation & Management System for Java Hotel.
+Sistem reservasi dan operasional untuk Java Hotel, Jakarta Selatan.
 
-## Product decisions
-- Single hotel, planned capacity 101–200 rooms.
-- Room categories: Standard, Superior, Deluxe, Suite.
-- Guest website supports online booking; staff can create walk-in reservations.
-- Instant confirmation only after inventory allocation is safely persisted.
-- Payment is collected at the hotel and recorded by staff.
-- Cancellation requests require admin approval.
-- Check-in and check-out: 12:00 WIB.
-- Operational workbook is stored on the hotel's Windows computer.
+## Repository structure
+- `apps/web`: Next.js guest site, booking form, reservation lookup and staff dashboard.
+- `apps/local-server`: Node.js API and Excel workbook owner.
+- `docs/PRD.md`: approved product scope.
+- `docs/ARCHITECTURE.md`: architecture and security boundaries.
+- `docs/SETUP_WINDOWS.md`: local installation guide.
+- `docs/IMPLEMENTATION_PLAN.md`: implemented scope and release blockers.
 
-## Architecture
-- apps/web: Next.js guest-facing web application.
-- apps/local-server: Node.js service that owns the private Excel workbook.
-- docs: product, architecture, and delivery documentation.
-
-The browser must never read or write the workbook directly. Do not expose the local service port to the public internet.
+## Confirmed hotel configuration
+- Single property: Java Hotel.
+- Planned capacity: 101–200 rooms. Real room inventory is entered by hotel staff.
+- Categories: Standard, Superior, Deluxe, Suite.
+- Check-in/check-out: 12:00 WIB.
+- Cancellation: admin approval required.
+- Payments are recorded at the hotel; no payment gateway in v1.
+- Primary data store: `NGINAP_DATABASE.xlsx` on the hotel computer.
 
 ## Run locally
-Requires Node.js 20.11+ and npm 10+.
+Requires Node.js 22 LTS and npm 10+.
+1. Copy `.env.example` to `.env`.
+2. Set unique `NGINAP_SESSION_SECRET` (32+ chars) and `NGINAP_BOOTSTRAP_KEY` (24+ chars).
+3. Run `npm install`.
+4. Run `npm run dev`.
+5. Open `http://localhost:3000`, booking at `/booking`, lookup at `/booking/lookup`, staff at `/staff`.
 
-1. Copy .env.example to .env.
-2. Run npm install.
-3. Run npm run dev.
-4. Web: http://localhost:3000. Local health: http://localhost:4100/health.
+See [Windows setup](docs/SETUP_WINDOWS.md).
 
-The local service initializes NGINAP_DATABASE.xlsx in its configured data directory.
+## Implemented in the current feature branch
+- Excel workbook initialization and schema checks.
+- Serialized workbook transactions and pre-write backup.
+- Staff bootstrap, scrypt password hashing, signed HttpOnly sessions and role-protected endpoints.
+- Room inventory and category-rate management.
+- Availability by physical room and overlapping dates.
+- Guest reservation, idempotency key, lookup and cancellation request.
+- Admin cancellation decision, check-in/out, payment ledger, housekeeping and reports.
+- Excel export.
+- Guest booking and lookup pages; staff dashboard.
+- Automated domain test and CI workflow definitions.
 
-## Current status
-Phase 0 foundation only. Guest booking, staff authentication, inventory workflows, payments, cancellation approval, public relay, and production connectivity are not implemented. Do not treat this as production-ready.
+## Release status
+This branch is a local pilot implementation, not a production-ready public reservation service. CI/build and Windows runtime tests have not yet been confirmed in this environment. A secure outbound relay is still required before a Vercel/public website can communicate with the Excel service on the hotel computer. Do not expose port 4100 to the public internet.
 
-See docs/PRD.md, docs/ARCHITECTURE.md, and docs/IMPLEMENTATION_PLAN.md.
+Real room numbers, category counts, rates, taxes, capacity and hotel policy details must be supplied by Java Hotel. Do not accept real guest bookings until release blockers in `docs/IMPLEMENTATION_PLAN.md` have passed.
