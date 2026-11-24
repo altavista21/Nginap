@@ -8,6 +8,7 @@ Sistem reservasi dan operasional untuk Java Hotel, Jakarta Selatan.
 - `docs/PRD.md`: approved product scope.
 - `docs/ARCHITECTURE.md`: architecture and security boundaries.
 - `docs/SETUP_WINDOWS.md`: local installation guide.
+- `docs/SECURE_RELAY.md`: secure Localtonet outbound relay guide.
 - `docs/IMPLEMENTATION_PLAN.md`: implemented scope and release blockers.
 
 ## Confirmed hotel configuration
@@ -42,6 +43,6 @@ See [Windows setup](docs/SETUP_WINDOWS.md).
 - Automated domain test and CI workflow definitions.
 
 ## Release status
-The main branch contains a CI-verified local pilot foundation, not a production-ready public reservation service. GitHub Actions test, typecheck, and build passed for the merged changes. Windows runtime and end-to-end acceptance tests are still outstanding. A secure outbound relay is required before a Vercel/public website can communicate with the Excel service on the hotel computer. Do not expose port 4100 to the public internet.
+The main branch contains a CI-verified local pilot foundation, not a production-ready public reservation service. GitHub Actions test, typecheck, and build passed for the merged changes. Windows runtime and end-to-end acceptance tests are still outstanding. A secure outbound Localtonet HTTP relay and same-origin Next.js API proxy are implemented in this branch. They still require provider account setup, secret configuration, Vercel environment variables, and end-to-end runtime verification before public booking is enabled. Do not expose port 4100 to the public internet.
 
 Real room numbers, category counts, rates, taxes, capacity and hotel policy details must be supplied by Java Hotel. Do not accept real guest bookings until release blockers in `docs/IMPLEMENTATION_PLAN.md` have passed.
