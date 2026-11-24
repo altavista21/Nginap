@@ -46,10 +46,10 @@ Dari PowerShell **Run as Administrator**, terapkan ACL berikut (ganti nama akun 
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\secure-storage-acl.ps1 -DataDirectory 'C:\ProgramData\Nginap\data' -BackupDirectory 'C:\ProgramData\Nginap\backups' -ServiceAccount '.\nginap-svc'
+.\scripts\secure-storage-acl.ps1 -DataDirectory 'C:\ProgramData\Nginap\data' -BackupDirectory 'C:\ProgramData\Nginap\backups' -EnvironmentFile '.\.env' -ServiceAccount '.\nginap-svc'
 ```
 
-Pastikan service Node.js benar-benar berjalan memakai akun tersebut. ACL memberi hak Modify hanya kepada akun service; SYSTEM dan grup Administrators mendapat Full Control. Akun staf hotel biasa tidak boleh memiliki hak menulis langsung ke folder data. Aktifkan BitLocker pada volume penyimpanan dan verifikasi dengan `manage-bde -status C:`.
+Pastikan service Node.js benar-benar berjalan memakai akun tersebut. ACL memberi hak Modify hanya kepada akun service untuk folder data/backup, serta Read pada file `.env`; SYSTEM dan grup Administrators mendapat Full Control. Akun staf hotel biasa tidak boleh memiliki hak menulis langsung ke folder data. Aktifkan BitLocker pada volume penyimpanan dan verifikasi dengan `manage-bde -status C:`.
 
 Aplikasi membatasi workbook maksimum 25 MiB, membatasi ukuran ekstraksi ZIP, menolak file symlink dan rentang merged-cell/drawing yang tidak wajar, serta menyimpan maksimum 30 backup otomatis terbaru. Backup di folder yang sama bukan pengganti backup eksternal terenkripsi.
 

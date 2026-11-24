@@ -24,7 +24,7 @@ Sistem reservasi dan operasional untuk Java Hotel, Jakarta Selatan.
 Requires Node.js 22 LTS and npm 10+.
 1. Copy `.env.example` to `.env`.
 2. Set unique `NGINAP_SESSION_SECRET` (32+ chars) and `NGINAP_BOOTSTRAP_KEY` (24+ chars).
-3. Run `npm install`.
+3. Run `npm ci` to install the exact reviewed dependency tree.
 4. Run `npm run dev`.
 5. Open `http://localhost:3000`, booking at `/booking`, lookup at `/booking/lookup`, staff at `/staff`.
 
