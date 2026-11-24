@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { ExcelStore } from "../src/storage/excel-store.js";
 import { HotelDomain } from "../src/domain.js";
+import { assertSafeXlsxXml } from "../src/storage/xlsx-preflight.js";
 
 test("booking allocation is serialized, idempotent and cancellation holds inventory until admin approval", async () => {
   const dir=await mkdtemp(path.join(os.tmpdir(),"nginap-test-"));
@@ -60,4 +61,11 @@ test("booking allocation is serialized, idempotent and cancellation holds invent
   } finally {
     await rm(dir,{recursive:true,force:true});
   }
+});
+
+
+test("XLSX preflight rejects oversized merged ranges and drawing anchors", () => {
+  assert.throws(() => assertSafeXlsxXml("xl/worksheets/sheet1.xml", '<worksheet><mergeCells><mergeCell ref="A1:XFD1048576"/></mergeCells></worksheet>'), /oversized merged-cell range/i);
+  assert.throws(() => assertSafeXlsxXml("xl/drawings/drawing1.xml", '<xdr:wsDr><xdr:from><xdr:col>300000000</xdr:col></xdr:from></xdr:wsDr>'), /out-of-range drawing column/i);
+  assert.doesNotThrow(() => assertSafeXlsxXml("xl/worksheets/sheet1.xml", '<worksheet><mergeCells><mergeCell ref="A1:B2"/></mergeCells></worksheet>'));
 });
