@@ -7,7 +7,7 @@ export class DomainError extends Error {}
 type Role = "superadmin" | "admin" | "receptionist";
 type Actor = { userId: string; username: string; role: Role };
 type Row = Record<string, string | number | boolean | null>;
-const id = (prefix: string) => prefix + "_" + randomUUID().replace(/-/g,"").slice(0,16);
+const id = (prefix: string) => prefix + "_" + randomUUID().replace(/-/g,"");
 const iso = () => new Date().toISOString();
 const text = (v: ExcelJS.CellValue) => v == null ? "" : String(v);
 const num = (v: ExcelJS.CellValue) => Number(v ?? 0);
