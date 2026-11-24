@@ -14,7 +14,10 @@ class SerialQueue {
   }
 }
 
-const MAX_WORKBOOK_BYTES = 25 * 1024 * 1024;\nconst MAX_BACKUPS = 30;\n\nexport class ExcelStore {
+const MAX_WORKBOOK_BYTES = 25 * 1024 * 1024;
+const MAX_BACKUPS = 30;
+
+export class ExcelStore {
   private readonly queue = new SerialQueue();
   constructor(private readonly filePath: string, private readonly backupDir: string) {}
 
@@ -56,8 +59,11 @@ const MAX_WORKBOOK_BYTES = 25 * 1024 * 1024;\nconst MAX_BACKUPS = 30;\n\nexport 
   }
 
   private async readWorkbook(): Promise<ExcelJS.Workbook> {
+    const file = await lstat(this.filePath);
+    if (!file.isFile() || file.isSymbolicLink()) throw new Error("Workbook must be a regular non-symlink file.");
+    if (file.size < 4 || file.size > MAX_WORKBOOK_BYTES) throw new Error("Workbook file size is outside the permitted limit.");
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(this.filePath);
+    await workbook.xlsx.readFile(this.filePath, { maxEntryUncompressedSize: 32 * 1024 * 1024, maxTotalUncompressedSize: 128 * 1024 * 1024 });
     return workbook;
   }
 
@@ -78,7 +84,8 @@ const MAX_WORKBOOK_BYTES = 25 * 1024 * 1024;\nconst MAX_BACKUPS = 30;\n\nexport 
       await workbook.xlsx.writeFile(temporaryPath);
       if (createBackup) {
         const backupPath = path.join(this.backupDir, "NGINAP_DATABASE-" + new Date().toISOString().replace(/[:.]/g, "-") + ".xlsx");
-        await copyFile(this.filePath, backupPath);\n        await this.pruneBackups();
+        await copyFile(this.filePath, backupPath);
+        await this.pruneBackups();
       }
       await rename(temporaryPath, this.filePath);
     } catch (error) {
@@ -87,7 +94,15 @@ const MAX_WORKBOOK_BYTES = 25 * 1024 * 1024;\nconst MAX_BACKUPS = 30;\n\nexport 
     }
   }
 
-  private async pruneBackups(): Promise<void> {\n    const files = (await readdir(this.backupDir, { withFileTypes: true }))\n      .filter((entry) => entry.isFile() && /^NGINAP_DATABASE-.*\\.xlsx$/.test(entry.name))\n      .map((entry) => entry.name)\n      .sort((a, b) => b.localeCompare(a));\n    await Promise.all(files.slice(MAX_BACKUPS).map((name) => rm(path.join(this.backupDir, name), { force: true })));\n  }\n\n  async read<T>(reader: (workbook: ExcelJS.Workbook) => T | Promise<T>): Promise<T> {
+  private async pruneBackups(): Promise<void> {
+    const files = (await readdir(this.backupDir, { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && /^NGINAP_DATABASE-.*\.xlsx$/.test(entry.name))
+      .map((entry) => entry.name)
+      .sort((a, b) => b.localeCompare(a));
+    await Promise.all(files.slice(MAX_BACKUPS).map((name) => rm(path.join(this.backupDir, name), { force: true })));
+  }
+
+  async read<T>(reader: (workbook: ExcelJS.Workbook) => T | Promise<T>): Promise<T> {
     return this.queue.run(async () => {
       const workbook = await this.readWorkbook();
       this.validateWorkbook(workbook);
