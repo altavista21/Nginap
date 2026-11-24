@@ -1,9 +1,10 @@
 import ExcelJS from "exceljs-hardened";
-import { mkdir, copyFile, rename, rm, access, stat, lstat, readdir } from "node:fs/promises";
+import { mkdir, copyFile, rename, rm, access, stat, lstat, readdir, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { DEFAULT_ROOM_TYPES, WORKSHEETS } from "./schema.js";
+import { assertSafeXlsxArchive } from "./xlsx-preflight.js";
 
 class SerialQueue {
   private tail: Promise<unknown> = Promise.resolve();
@@ -62,8 +63,10 @@ export class ExcelStore {
     const file = await lstat(this.filePath);
     if (!file.isFile() || file.isSymbolicLink()) throw new Error("Workbook must be a regular non-symlink file.");
     if (file.size < 4 || file.size > MAX_WORKBOOK_BYTES) throw new Error("Workbook file size is outside the permitted limit.");
+    const archive = await readFile(this.filePath);
+    assertSafeXlsxArchive(archive);
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(this.filePath, { maxEntryUncompressedSize: 32 * 1024 * 1024, maxTotalUncompressedSize: 128 * 1024 * 1024 });
+    await workbook.xlsx.load(archive, { maxEntryUncompressedSize: 32 * 1024 * 1024, maxTotalUncompressedSize: 128 * 1024 * 1024 });
     return workbook;
   }
 
