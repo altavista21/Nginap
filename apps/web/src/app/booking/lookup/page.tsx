@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { ArrowLeft, Search, CalendarDays } from "lucide-react";
-const API=process.env.NEXT_PUBLIC_LOCAL_API_URL??"http://127.0.0.1:4100";
+const API="/api/nginap";
 export default function LookupPage(){const [bookingId,setBookingId]=useState("");const [email,setEmail]=useState("");const [reason,setReason]=useState("");const [result,setResult]=useState<any>(null);const [error,setError]=useState("");const [busy,setBusy]=useState(false);
  async function lookup(){setBusy(true);setError("");setResult(null);try{const r=await fetch(API+"/api/public/bookings/lookup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({bookingId,email})});const d=await r.json();if(!r.ok)throw new Error(d.error);setResult(d);}catch(e){setError(e instanceof Error?e.message:"Reservasi tidak dapat ditemukan.");}finally{setBusy(false);}}
  async function cancel(){setBusy(true);setError("");try{const r=await fetch(API+"/api/public/cancellations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({bookingId,email,reason})});const d=await r.json();if(!r.ok)throw new Error(d.error);setResult({...result,status:d.status});}catch(e){setError(e instanceof Error?e.message:"Permintaan pembatalan gagal.");}finally{setBusy(false);}}
