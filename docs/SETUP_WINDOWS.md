@@ -20,7 +20,7 @@ Windows 10 sudah melewati akhir dukungan standar pada 14 Oktober 2025. Gunakan W
    [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
    ```
 5. Isi `NGINAP_SESSION_SECRET` dengan secret pertama (minimal 32 karakter), `NGINAP_BOOTSTRAP_KEY` dengan secret kedua (minimal 24 karakter), tambahkan `NGINAP_RELAY_TOKEN` (secret acak berbeda, minimal 32 karakter), set `NGINAP_COOKIE_SECURE=true`, dan sesuaikan `NGINAP_ALLOWED_ORIGIN=http://localhost:3000`.
-6. Jalankan `npm install`.
+6. Jalankan `npm ci` agar instalasi mengikuti dependency lockfile yang sudah dikunci.
 7. Jalankan `npm run dev`.
 8. Buka `http://localhost:3000` untuk tamu dan `http://localhost:3000/staff` untuk staf.
 
