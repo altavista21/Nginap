@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { ExcelStore } from "../src/storage/excel-store.js";
@@ -104,4 +104,18 @@ test("XLSX preflight rejects oversized merged ranges and drawing anchors", () =>
   assert.throws(() => assertSafeXlsxXml("xl/worksheets/sheet1.xml", '<worksheet><mergeCells><mergeCell ref="A1:XFD1048576"/></mergeCells></worksheet>'), /oversized merged-cell range/i);
   assert.throws(() => assertSafeXlsxXml("xl/drawings/drawing1.xml", '<xdr:wsDr><xdr:from><xdr:col>300000000</xdr:col></xdr:from></xdr:wsDr>'), /out-of-range drawing column/i);
   assert.doesNotThrow(() => assertSafeXlsxXml("xl/worksheets/sheet1.xml", '<worksheet><mergeCells><mergeCell ref="A1:B2"/></mergeCells></worksheet>'));
+});
+
+
+test("rejects oversized workbook files before Excel parsing", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "nginap-size-test-"));
+  try {
+    const dataDir = path.join(dir, "data");
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(path.join(dataDir, "NGINAP_DATABASE.xlsx"), Buffer.alloc(25 * 1024 * 1024 + 1));
+    const store = new ExcelStore(path.join(dataDir, "NGINAP_DATABASE.xlsx"), path.join(dir, "backups"));
+    await assert.rejects(store.initialize(), /file size is outside the permitted limit/i);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
