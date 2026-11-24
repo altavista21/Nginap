@@ -29,7 +29,7 @@ Requires Node.js 22 LTS and npm 10+.
 
 See [Windows setup](docs/SETUP_WINDOWS.md).
 
-## Implemented in the current feature branch
+## Implemented in main
 - Excel workbook initialization and schema checks.
 - Serialized workbook transactions and pre-write backup.
 - Staff bootstrap, scrypt password hashing, signed HttpOnly sessions and role-protected endpoints.
@@ -42,6 +42,6 @@ See [Windows setup](docs/SETUP_WINDOWS.md).
 - Automated domain test and CI workflow definitions.
 
 ## Release status
-This branch is a local pilot implementation, not a production-ready public reservation service. CI/build and Windows runtime tests have not yet been confirmed in this environment. A secure outbound relay is still required before a Vercel/public website can communicate with the Excel service on the hotel computer. Do not expose port 4100 to the public internet.
+The main branch contains a CI-verified local pilot foundation, not a production-ready public reservation service. GitHub Actions test, typecheck, and build passed for the merged changes. Windows runtime and end-to-end acceptance tests are still outstanding. A secure outbound relay is required before a Vercel/public website can communicate with the Excel service on the hotel computer. Do not expose port 4100 to the public internet.
 
 Real room numbers, category counts, rates, taxes, capacity and hotel policy details must be supplied by Java Hotel. Do not accept real guest bookings until release blockers in `docs/IMPLEMENTATION_PLAN.md` have passed.
