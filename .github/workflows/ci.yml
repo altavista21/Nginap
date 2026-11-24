@@ -13,5 +13,6 @@ jobs:
         with:
           node-version: 20
       - run: npm install
-      - run: npm run test --workspace @nginap/local-server\n      - run: npm run typecheck
+      - run: npm run test --workspace @nginap/local-server
+      - run: npm run typecheck
       - run: npm run build
