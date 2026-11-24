@@ -50,6 +50,10 @@ test("booking allocation is serialized, idempotent and cancellation holds invent
     const occupiedAvailability=await domain.availability(checkIn,checkOut,1);
     assert.equal(occupiedAvailability.find(x=>x.typeId==="RT001")?.canBook,false,"occupied room must never be offered as available");
     await assert.rejects(domain.housekeeping(admin,String(room.RoomID),"Inspected"),/kamar yang sedang ditempati/i,"housekeeping must not release an occupied room");
+    const signedSession=domain.signSession(admin);
+    assert.ok(domain.readSession(signedSession),"signed session must validate before account changes");
+    await store.transaction(wb=>{const sheet=wb.getWorksheet("Users")!;sheet.getRow(2).getCell(4).value="admin";});
+    assert.equal(await domain.isActiveActor(admin),false,"changing a staff role must invalidate the old session immediately");
     const status=await domain.workbookStatus();
     assert.equal(status.initialized,true);
     assert.ok(status.sheets.includes("Reservations"));
