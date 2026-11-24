@@ -39,7 +39,7 @@ const cancellationLimiter=rateLimit({windowMs:15*60_000,limit:5,standardHeaders:
 const cookieName="nginap_session";
 function actor(req:express.Request){return domain.readSession(req.cookies?.[cookieName]??req.headers.authorization?.replace(/^Bearer /,""));}
 function routeParam(req:express.Request,name:string):string{const value=req.params[name];return Array.isArray(value)?(value[0]??""):(value??"");}
-function requireAuth(roles:string[]=[]):express.RequestHandler{return(req,res,next)=>{const user=actor(req);if(!user){res.status(401).json({error:"Silakan login."});return;}if(roles.length&&!roles.includes(user.role)){res.status(403).json({error:"Akses tidak diizinkan."});return;}(req as express.Request&{actor:typeof user}).actor=user;next();};}
+function requireAuth(roles:string[]=[]):express.RequestHandler{return async(req,res,next)=>{const user=actor(req);if(!user){res.status(401).json({error:"Silakan login."});return;}if(!await domain.isActiveActor(user)){res.status(401).json({error:"Sesi tidak lagi aktif. Silakan login kembali."});return;}if(roles.length&&!roles.includes(user.role)){res.status(403).json({error:"Akses tidak diizinkan."});return;}(req as express.Request&{actor:typeof user}).actor=user;next();};}
 class RequestValidationError extends Error {}
 function validate<T>(schema:z.ZodType<T>,body:unknown):T{const parsed=schema.safeParse(body);if(!parsed.success)throw new RequestValidationError(parsed.error.issues.map(x=>x.message).join("; "));return parsed.data;}
 const loginSchema=z.object({username:z.string().min(3).max(60),password:z.string().min(1).max(200)});
