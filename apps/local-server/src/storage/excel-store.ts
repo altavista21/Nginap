@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { mkdir, copyFile, rename, rm, access } from "node:fs/promises";
+import { mkdir, copyFile, rename, rm, access, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -24,7 +24,8 @@ export class ExcelStore {
       await mkdir(this.backupDir, { recursive: true });
       try {
         await access(this.filePath, constants.F_OK);
-        await this.readWorkbook();
+        const workbook = await this.readWorkbook();
+        this.validateWorkbook(workbook);
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         await this.persist(this.createWorkbook(), false);
@@ -44,15 +45,13 @@ export class ExcelStore {
       sheet.views = [{ state: "frozen", ySplit: 1 }];
       sheet.columns = headers.map((header) => ({ header, key: header, width: Math.max(16, header.length + 3) }));
     }
-    const roomTypes = workbook.getWorksheet("RoomTypes");
-    for (const row of DEFAULT_ROOM_TYPES) roomTypes?.addRow([...row]);
-    const settings = workbook.getWorksheet("Settings");
+    for (const row of DEFAULT_ROOM_TYPES) workbook.getWorksheet("RoomTypes")?.addRow([...row]);
     [
-      ["HotelName", "Java Hotel"],
-      ["HotelAddress", "Jalan Jend. Sudirman No. 40–45, Jakarta Selatan, DKI Jakarta, Indonesia"],
-      ["CheckInTime", "12:00"], ["CheckOutTime", "12:00"], ["TimeZone", "Asia/Jakarta"],
-      ["Currency", "IDR"], ["CancellationPolicy", "AdminApprovalRequired"], ["WorkbookSchemaVersion", "1"],
-    ].forEach((row) => settings?.addRow(row));
+      ["HotelName","Java Hotel"],
+      ["HotelAddress","Jalan Jend. Sudirman No. 40–45, Jakarta Selatan, DKI Jakarta, Indonesia"],
+      ["CheckInTime","12:00"],["CheckOutTime","12:00"],["TimeZone","Asia/Jakarta"],
+      ["Currency","IDR"],["CancellationPolicy","AdminApprovalRequired"],["WorkbookSchemaVersion","1"],
+    ].forEach((row) => workbook.getWorksheet("Settings")?.addRow(row));
     return workbook;
   }
 
@@ -60,6 +59,17 @@ export class ExcelStore {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(this.filePath);
     return workbook;
+  }
+
+  private validateWorkbook(workbook: ExcelJS.Workbook): void {
+    for (const [name, headers] of Object.entries(WORKSHEETS)) {
+      const sheet = workbook.getWorksheet(name);
+      if (!sheet) throw new Error("Workbook schema invalid: missing worksheet " + name);
+      const actual = headers.map((_, index) => String(sheet.getCell(1, index + 1).value ?? ""));
+      if (headers.some((header, index) => actual[index] !== header)) {
+        throw new Error("Workbook schema invalid: headers mismatch in " + name);
+      }
+    }
   }
 
   private async persist(workbook: ExcelJS.Workbook, createBackup: boolean): Promise<void> {
@@ -77,10 +87,30 @@ export class ExcelStore {
     }
   }
 
-  async getStatus(): Promise<{ workbook: string; sheets: string[]; initialized: boolean }> {
+  async read<T>(reader: (workbook: ExcelJS.Workbook) => T | Promise<T>): Promise<T> {
     return this.queue.run(async () => {
       const workbook = await this.readWorkbook();
-      return { workbook: path.basename(this.filePath), sheets: workbook.worksheets.map((sheet) => sheet.name), initialized: true };
+      this.validateWorkbook(workbook);
+      return reader(workbook);
+    });
+  }
+
+  async transaction<T>(operation: (workbook: ExcelJS.Workbook) => T | Promise<T>): Promise<T> {
+    return this.queue.run(async () => {
+      const workbook = await this.readWorkbook();
+      this.validateWorkbook(workbook);
+      const result = await operation(workbook);
+      await this.persist(workbook, true);
+      return result;
+    });
+  }
+
+  async getStatus(): Promise<{ workbook: string; sheets: string[]; initialized: boolean; bytes: number }> {
+    return this.queue.run(async () => {
+      const workbook = await this.readWorkbook();
+      this.validateWorkbook(workbook);
+      const info = await stat(this.filePath);
+      return { workbook: path.basename(this.filePath), sheets: workbook.worksheets.map((sheet) => sheet.name), initialized: true, bytes: info.size };
     });
   }
 }
