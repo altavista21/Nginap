@@ -29,8 +29,10 @@ const origins=(process.env.NGINAP_ALLOWED_ORIGIN??"http://localhost:3000").split
 app.use(cors({origin:(origin,cb)=>{if(!origin||origins.includes(origin))cb(null,true);else cb(new Error("Origin not allowed"));},credentials:true}));
 app.use((req,res,next)=>{const provided=String(req.headers["x-nginap-relay-token"]??"");const expected=Buffer.from(relayToken);const actual=Buffer.from(provided);if(actual.length!==expected.length||!timingSafeEqual(actual,expected)){res.status(403).json({error:"Akses relay tidak diizinkan."});return;}next();});
 app.use(express.json({limit:"32kb"}));app.use(cookieParser());app.use(rateLimit({windowMs:60_000,limit:120,standardHeaders:"draft-7",legacyHeaders:false,keyGenerator:clientRateLimitKey}));
-const authLimiter=rateLimit({windowMs:15*60_000,limit:10,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Terlalu banyak percobaan. Coba lagi nanti."}});
-const publicBookingLimiter=rateLimit({windowMs:15*60_000,limit:8,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Terlalu banyak permintaan reservasi. Coba lagi nanti."}});
+const authLimiter=rateLimit({windowMs:15*60_000,limit:10,standardHeaders:"draft-7",legacyHeaders:false,keyGenerator:clientRateLimitKey,message:{error:"Terlalu banyak percobaan. Coba lagi nanti."}});
+const publicBookingLimiter=rateLimit({windowMs:15*60_000,limit:8,standardHeaders:"draft-7",legacyHeaders:false,keyGenerator:clientRateLimitKey,message:{error:"Terlalu banyak permintaan reservasi. Coba lagi nanti."}});
+const lookupLimiter=rateLimit({windowMs:15*60_000,limit:12,standardHeaders:"draft-7",legacyHeaders:false,keyGenerator:clientRateLimitKey,message:{error:"Terlalu banyak pencarian reservasi. Coba lagi nanti."}});
+const cancellationLimiter=rateLimit({windowMs:15*60_000,limit:5,standardHeaders:"draft-7",legacyHeaders:false,keyGenerator:clientRateLimitKey,message:{error:"Terlalu banyak permintaan pembatalan. Coba lagi nanti."}});
 const cookieName="nginap_session";
 function actor(req:express.Request){return domain.readSession(req.cookies?.[cookieName]??req.headers.authorization?.replace(/^Bearer /,""));}
 function routeParam(req:express.Request,name:string):string{const value=req.params[name];return Array.isArray(value)?(value[0]??""):(value??"");}
