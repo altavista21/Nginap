@@ -1,13 +1,14 @@
 {
   "name": "@nginap/local-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test test/reservation.test.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -15,13 +16,16 @@
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "express-rate-limit": "^7.5.0",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.6.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/node": "^22.15.30",
     "tsx": "^4.20.3",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "@types/cookie-parser": "^1.4.9"
   }
 }

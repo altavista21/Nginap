@@ -15,7 +15,7 @@ export default function HomePage() {
           <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#245746] text-white"><BedDouble size={21} /></span>
           <span><span className="block text-lg font-bold tracking-tight">nginap<span className="text-[#8b9b75]">.</span></span><span className="block text-[10px] uppercase tracking-[.22em] text-[#69756f]">Java Hotel</span></span>
         </a>
-        <span className="rounded-full border border-[#dce4db] bg-white px-4 py-2 text-xs font-semibold text-[#476457]">Reservasi online segera hadir</span>
+        <a href="/booking" className="rounded-full bg-[#245746] px-4 py-2.5 text-xs font-semibold text-white">Pesan kamar</a>
       </header>
       <section className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-20 pt-10 md:grid-cols-[1.02fr_.98fr] md:px-10 md:pb-28 md:pt-16">
         <div className="max-w-2xl">

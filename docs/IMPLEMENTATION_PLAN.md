@@ -1,34 +1,24 @@
-# Implementation Plan
+# Implementation Plan and Verified Scope
 
-Delivery is incremental. A phase is not complete merely because files exist; its acceptance tests must pass.
-
-| Phase | Scope | Exit criteria |
+| Area | Implemented in this delivery | Production caveat |
 |---|---|---|
-| 0 | Project foundation, app shells, local workbook initialization, documentation | Install, typecheck, build, health check, workbook creation verified |
-| 1 | Excel data engine and recovery journal | Schema validation, serialized writes, backup/restore and failure tests |
-| 2 | Authentication and RBAC | Staff login, secure sessions, role matrix and rate limiting |
-| 3 | Hotel inventory | Room types, physical rooms, pricing, housekeeping |
-| 4 | Reservation engine | Availability, instant booking, idempotency, concurrency protection |
-| 5 | Operations | Walk-in, check-in/out, payment ledger, cancellation approval |
-| 6 | Guest website | Search, room details, booking, lookup and cancellation request |
-| 7 | Reports and audit | Reconciled reports, exports, audit review |
-| 8 | Deployment and QA | Secure relay, Windows service setup, backup restore drill, end-to-end and load tests |
+| Excel storage | Workbook schema validation, serialized read/write transactions, atomic temp-file replacement, pre-write backup | Restore drill and Windows file-lock testing still required |
+| Authentication | Bootstrap superadmin, scrypt password hashing, signed HttpOnly session cookie, role checks, login rate limit | Configure secrets and TLS before public exposure |
+| Inventory | Create/list physical rooms, four room types, status and housekeeping | Hotel must import its real room list and rates |
+| Availability | Per-room date overlap checks, room-count limits | Only valid when all booking traffic reaches the same hotel service |
+| Reservations | Guest booking, walk-in, idempotency key, durable write before confirmation | Online booking is not public-internet connected yet |
+| Operations | Check-in/out, payment recording, housekeeping | Staff UI and operational acceptance tests pending |
+| Cancellation | Guest request; room remains blocked; admin approval/rejection | Staff UI pending |
+| Reports | Occupancy, revenue, collection, outstanding balance; workbook export | Reconciliation against hotel sample data pending |
+| Guest experience | Landing page only | Search/booking/lookup UI pending |
+| Deployment | Local service binds loopback by default | Secure outbound relay, Windows installer/service and TLS pending |
 
-## Phase 0 implementation status
+## Remaining release blockers
+1. Build and typecheck in clean environment; resolve all compiler failures.
+2. Add automated domain tests for overlap, idempotency, cancellation hold, payment totals and concurrency.
+3. Add browser UI for guest booking and staff operations.
+4. Implement a secure outbound relay for true public internet reservations; do not expose the hotel computer's port.
+5. Perform Windows 10/11 runtime, backup restore, disk-full and file-lock drills.
+6. Populate and verify the actual room inventory, prices, taxes, capacities and hotel policies.
 
-- [x] Repository initialized on main.
-- [x] Monorepo structure added.
-- [x] Next.js guest-facing shell added.
-- [x] Local Node.js service shell added.
-- [x] Excel workbook schema and initialization added.
-- [x] Health endpoint added.
-- [x] Product and architecture documentation added.
-- [ ] Dependencies installed and typecheck/build executed in a clean environment.
-- [ ] Windows 10 runtime smoke test.
-
-## Guardrails
-
-- Do not add invented room inventory or prices.
-- Do not expose the local Excel service to the public internet.
-- Do not claim booking is operational until the concurrency, persistence, and recovery acceptance tests pass.
-- Do not add payment gateway or OTA scope without product approval.
+A repository commit is not equivalent to a production-ready release. Nginap must remain in pilot/local-network mode until the release blockers pass.

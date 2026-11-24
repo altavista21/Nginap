@@ -1,44 +1,67 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { timingSafeEqual } from "node:crypto";
+import { z } from "zod";
 import { ExcelStore } from "./storage/excel-store.js";
+import { HotelDomain } from "./domain.js";
 
-const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const rootDir = path.resolve(currentDir, "..");
-const dataDir = path.resolve(process.env.NGINAP_DATA_DIR ?? path.join(rootDir, "data"));
-const backupDir = path.resolve(process.env.NGINAP_BACKUP_DIR ?? path.join(rootDir, "backups"));
-const workbookPath = path.join(dataDir, "NGINAP_DATABASE.xlsx");
-const host = process.env.NGINAP_HOST ?? "127.0.0.1";
-const port = Number(process.env.NGINAP_PORT ?? 4100);
-
-const app = express();
-const store = new ExcelStore(workbookPath, backupDir);
-app.disable("x-powered-by");
-app.use(helmet());
-app.use(cors({ origin: process.env.NGINAP_ALLOWED_ORIGIN?.split(",") ?? ["http://localhost:3000"] }));
-app.use(express.json({ limit: "32kb" }));
-app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: "draft-7", legacyHeaders: false }));
-
-app.get("/health", async (_request, response) => {
-  try {
-    const status = await store.getStatus();
-    response.json({ status: "ok", service: "nginap-local-server", storage: status });
-  } catch {
-    response.status(503).json({ status: "unavailable", service: "nginap-local-server" });
-  }
-});
-
-app.use((_request, response) => response.status(404).json({ error: "Not found" }));
-app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
-  console.error("Unhandled request error", error);
-  response.status(500).json({ error: "Internal server error" });
-});
-
+const currentDir=path.dirname(fileURLToPath(import.meta.url));
+const rootDir=path.resolve(currentDir,"..");
+const dataDir=path.resolve(process.env.NGINAP_DATA_DIR??path.join(rootDir,"data"));
+const backupDir=path.resolve(process.env.NGINAP_BACKUP_DIR??path.join(rootDir,"backups"));
+const host=process.env.NGINAP_HOST??"127.0.0.1";
+const port=Number(process.env.NGINAP_PORT??4100);
+const secret=process.env.NGINAP_SESSION_SECRET??"";
+if(secret.length<32)throw new Error("NGINAP_SESSION_SECRET wajib diisi dengan nilai acak minimal 32 karakter.");
+const app=express();const store=new ExcelStore(path.join(dataDir,"NGINAP_DATABASE.xlsx"),backupDir);const domain=new HotelDomain(store,secret);
+app.disable("x-powered-by");app.use(helmet({crossOriginResourcePolicy:{policy:"same-site"}}));
+const origins=(process.env.NGINAP_ALLOWED_ORIGIN??"http://localhost:3000").split(",").map(x=>x.trim());
+app.use(cors({origin:(origin,cb)=>{if(!origin||origins.includes(origin))cb(null,true);else cb(new Error("Origin not allowed"));},credentials:true}));
+app.use(express.json({limit:"32kb"}));app.use(cookieParser());app.use(rateLimit({windowMs:60_000,limit:120,standardHeaders:"draft-7",legacyHeaders:false}));
+const authLimiter=rateLimit({windowMs:15*60_000,limit:10,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Terlalu banyak percobaan. Coba lagi nanti."}});
+const publicBookingLimiter=rateLimit({windowMs:15*60_000,limit:8,standardHeaders:"draft-7",legacyHeaders:false,message:{error:"Terlalu banyak permintaan reservasi. Coba lagi nanti."}});
+const cookieName="nginap_session";
+function actor(req:express.Request){return domain.readSession(req.cookies?.[cookieName]??req.headers.authorization?.replace(/^Bearer /,""));}
+function routeParam(req:express.Request,name:string):string{const value=req.params[name];return Array.isArray(value)?(value[0]??""):(value??"");}
+function requireAuth(roles:string[]=[]):express.RequestHandler{return(req,res,next)=>{const user=actor(req);if(!user){res.status(401).json({error:"Silakan login."});return;}if(roles.length&&!roles.includes(user.role)){res.status(403).json({error:"Akses tidak diizinkan."});return;}(req as express.Request&{actor:typeof user}).actor=user;next();};}
+function validate<T>(schema:z.ZodType<T>,body:unknown):T{const parsed=schema.safeParse(body);if(!parsed.success)throw new Error(parsed.error.issues.map(x=>x.message).join("; "));return parsed.data;}
+const loginSchema=z.object({username:z.string().min(3).max(60),password:z.string().min(1).max(200)});
+const bookingSchema=z.object({name:z.string().trim().min(2).max(100),email:z.string().email().max(160),phone:z.string().min(8).max(30),checkIn:z.string(),checkOut:z.string(),roomTypeId:z.string().min(1),roomCount:z.number().int().min(1).max(10),idempotencyKey:z.string().min(12).max(100)});
+const staffSchema=z.object({username:z.string().min(3).max(60),password:z.string().min(12).max(200),role:z.enum(["admin","receptionist"])});
+const cancellationSchema=z.object({bookingId:z.string().min(5),email:z.string().email(),reason:z.string().min(5).max(500)});
+app.get("/health",async(_req,res)=>{try{res.json({status:"ok",service:"nginap-local-server",storage:await domain.workbookStatus()});}catch{res.status(503).json({status:"unavailable"});}});
+app.post("/api/auth/bootstrap",authLimiter,async(req,res,next)=>{try{const gate=process.env.NGINAP_BOOTSTRAP_KEY??"";const provided=String(req.headers["x-bootstrap-key"]??"");if(gate.length<24||provided.length!==gate.length||!timingSafeEqual(Buffer.from(provided),Buffer.from(gate)))return res.status(403).json({error:"Bootstrap tidak diizinkan."});const data=validate(loginSchema,req.body);await domain.bootstrap(data.username,data.password);res.status(201).json({success:true,message:"Superadmin berhasil dibuat. Hapus NGINAP_BOOTSTRAP_KEY dari konfigurasi setelah setup."});}catch(e){next(e);}});
+app.post("/api/auth/login",authLimiter,async(req,res,next)=>{try{const data=validate(loginSchema,req.body);const user=await domain.login(data.username,data.password);res.cookie(cookieName,domain.signSession(user),{httpOnly:true,sameSite:"strict",secure:process.env.NGINAP_COOKIE_SECURE==="true",maxAge:8*60*60*1000,path:"/"});res.json({user});}catch(e){next(e);}});
+app.post("/api/auth/logout",(req,res)=>{res.clearCookie(cookieName,{httpOnly:true,sameSite:"strict",secure:process.env.NGINAP_COOKIE_SECURE==="true",path:"/"});res.json({success:true});});
+app.get("/api/auth/me",requireAuth(),(req,res)=>res.json({user:(req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor}));
+app.get("/api/public/room-types",async(req,res,next)=>{try{const checkIn=String(req.query.checkIn??"");const checkOut=String(req.query.checkOut??"");const count=Number(req.query.roomCount??1);res.json({roomTypes:await domain.availability(checkIn,checkOut,count)});}catch(e){next(e);}});
+app.post("/api/public/bookings",publicBookingLimiter,async(req,res,next)=>{try{const data=validate(bookingSchema,req.body);const result=await domain.createBooking(data,null);res.status(result.reused?200:201).json(result);}catch(e){next(e);}});
+app.post("/api/public/bookings/lookup",async(req,res,next)=>{try{const data=validate(z.object({bookingId:z.string().min(5),email:z.string().email()}),req.body);res.json(await domain.lookupBooking(data.bookingId,data.email));}catch(e){next(e);}});
+app.post("/api/public/cancellations",publicBookingLimiter,async(req,res,next)=>{try{const data=validate(cancellationSchema,req.body);await domain.requestCancellation(data.bookingId,data.email,data.reason);res.json({success:true,status:"CancellationRequested"});}catch(e){next(e);}});
+app.get("/api/dashboard",requireAuth(),async(_req,res,next)=>{try{res.json(await domain.dashboard());}catch(e){next(e);}});
+app.get("/api/room-types",requireAuth(),async(_req,res,next)=>{try{res.json({roomTypes:(await domain.dashboard()).roomTypes});}catch(e){next(e);}});
+app.patch("/api/room-types/:id",requireAuth(["admin","superadmin"]),async(req,res,next)=>{try{const data=validate(z.object({price:z.number().positive(),capacity:z.number().int().min(1).max(10),description:z.string().max(250)}),req.body);await domain.setRoomTypeRate((req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor,routeParam(req,"id"),data.price,data.capacity,data.description);res.json({success:true});}catch(e){next(e);}});
+app.get("/api/rooms",requireAuth(),async(_req,res,next)=>{try{res.json({rooms:await domain.listRooms()});}catch(e){next(e);}});
+app.post("/api/rooms",requireAuth(["admin","superadmin"]),async(req,res,next)=>{try{const data=validate(z.object({roomNumber:z.string().min(1).max(20),typeId:z.string(),floor:z.string().max(20),notes:z.string().max(200).optional()}),req.body);await domain.saveRoom((req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor,data);res.status(201).json({success:true});}catch(e){next(e);}});
+app.get("/api/reservations",requireAuth(),async(_req,res,next)=>{try{res.json({reservations:await domain.listReservations()});}catch(e){next(e);}});
+app.post("/api/reservations/walk-in",requireAuth(["receptionist","admin","superadmin"]),async(req,res,next)=>{try{const data=validate(bookingSchema,req.body);const result=await domain.createBooking(data,(req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor);res.status(201).json(result);}catch(e){next(e);}});
+app.post("/api/reservations/:id/check-in",requireAuth(["receptionist","admin","superadmin"]),async(req,res,next)=>{try{await domain.checkIn((req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor,routeParam(req,"id"));res.json({success:true});}catch(e){next(e);}});
+app.post("/api/reservations/:id/check-out",requireAuth(["receptionist","admin","superadmin"]),async(req,res,next)=>{try{await domain.checkOut((req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor,routeParam(req,"id"));res.json({success:true});}catch(e){next(e);}});
+app.post("/api/reservations/:id/payments",requireAuth(["receptionist","admin","superadmin"]),async(req,res,next)=>{try{const data=validate(z.object({amount:z.number().positive(),method:z.enum(["Cash","Transfer","DebitCard","CreditCard","Other"])}),req.body);await domain.recordPayment((req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor,routeParam(req,"id"),data.amount,data.method);res.json({success:true});}catch(e){next(e);}});
+app.post("/api/reservations/:id/cancellation-decision",requireAuth(["admin","superadmin"]),async(req,res,next)=>{try{const data=validate(z.object({approve:z.boolean(),reason:z.string().min(3).max(500)}),req.body);await domain.decideCancellation((req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor,routeParam(req,"id"),data.approve,data.reason);res.json({success:true});}catch(e){next(e);}});
+app.patch("/api/rooms/:id/housekeeping",requireAuth(["receptionist","admin","superadmin"]),async(req,res,next)=>{try{const data=validate(z.object({status:z.enum(["Pending","Cleaning","Clean","Inspected"])}),req.body);await domain.housekeeping((req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor,routeParam(req,"id"),data.status);res.json({success:true});}catch(e){next(e);}});
+app.post("/api/staff",requireAuth(["superadmin"]),async(req,res,next)=>{try{const data=validate(staffSchema,req.body);await domain.createStaff((req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor,data.username,data.password,data.role);res.status(201).json({success:true});}catch(e){next(e);}});
+app.get("/api/reports",requireAuth(["admin","superadmin"]),async(_req,res,next)=>{try{res.json(await domain.reports());}catch(e){next(e);}});
+app.get("/api/export/workbook",requireAuth(["admin","superadmin"]),async(_req,res,next)=>{try{const data=await domain.exportWorkbook();res.setHeader("Content-Type","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");res.setHeader("Content-Disposition",'attachment; filename="NGINAP_DATABASE.xlsx"');res.send(data);}catch(e){next(e);}});
+app.use((_req,res)=>res.status(404).json({error:"Endpoint tidak ditemukan."}));
+app.use((error:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{const message=error instanceof Error?error.message:"Terjadi kesalahan.";const client=["Workbook schema invalid","EACCES","ENOENT"].some(x=>message.includes(x));console.error("Nginap API:",message);res.status(client?503:400).json({error:client?"Layanan penyimpanan sedang bermasalah.":message});});
 await store.initialize();
-app.listen(port, host, () => {
-  console.log("Nginap local service listening on http://" + host + ":" + port);
-  console.log("Workbook: " + workbookPath);
-});
+const bootstrapUser=process.env.NGINAP_BOOTSTRAP_ADMIN_USER;const bootstrapPass=process.env.NGINAP_BOOTSTRAP_ADMIN_PASSWORD;
+if(bootstrapUser&&bootstrapPass){try{await domain.bootstrap(bootstrapUser,bootstrapPass);console.log("Initial superadmin created.");}catch(e){if(!(e instanceof Error)||!e.message.includes("sudah tersedia"))throw e;}}
+app.listen(port,host,()=>console.log("Nginap local service listening on http://"+host+":"+port));

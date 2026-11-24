@@ -1,0 +1,49 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { ExcelStore } from "../src/storage/excel-store.js";
+import { HotelDomain } from "../src/domain.js";
+
+test("booking allocation is serialized, idempotent and cancellation holds inventory until admin approval", async () => {
+  const dir=await mkdtemp(path.join(os.tmpdir(),"nginap-test-"));
+  try {
+    const store=new ExcelStore(path.join(dir,"data","NGINAP_DATABASE.xlsx"),path.join(dir,"backups"));
+    await store.initialize();
+    const domain=new HotelDomain(store,"test-session-secret-that-is-long-enough-123456");
+    await domain.bootstrap("superadmin","VeryStrongTestPassword123!");
+    const admin=await domain.login("superadmin","VeryStrongTestPassword123!");
+    await domain.setRoomTypeRate(admin,"RT001",450000,2,"Standard room");
+    await domain.saveRoom(admin,{roomNumber:"101",typeId:"RT001",floor:"1"});
+    const checkIn=new Date(Date.now()+2*86400000).toLocaleDateString("en-CA",{timeZone:"Asia/Jakarta"});
+    const checkOut=new Date(Date.now()+3*86400000).toLocaleDateString("en-CA",{timeZone:"Asia/Jakarta"});
+    const base={name:"Guest Test",phone:"081234567890",checkIn,checkOut,roomTypeId:"RT001",roomCount:1};
+    const attempts=await Promise.allSettled([
+      domain.createBooking({...base,email:"one@example.com",idempotencyKey:"booking-request-key-001"},null),
+      domain.createBooking({...base,email:"two@example.com",idempotencyKey:"booking-request-key-002"},null),
+    ]);
+    assert.equal(attempts.filter(x=>x.status==="fulfilled").length,1,"only one concurrent request may get the final room");
+    assert.equal(attempts.filter(x=>x.status==="rejected").length,1);
+    const winner=attempts.find(x=>x.status==="fulfilled");
+    assert.ok(winner&&winner.status==="fulfilled");
+    const winnerIndex=attempts.indexOf(winner);
+    const winningEmail=winnerIndex===0?"one@example.com":"two@example.com";
+    const winningKey=winnerIndex===0?"booking-request-key-001":"booking-request-key-002";
+    const bookingId=winner.value.bookingId;
+    const retry=await domain.createBooking({...base,email:winningEmail,idempotencyKey:winningKey},null);
+    assert.equal(retry.bookingId,bookingId);
+    assert.equal(retry.reused,true);
+    await domain.requestCancellation(bookingId,winningEmail,"Change of travel plan");
+    const held=await domain.availability(checkIn,checkOut,1);
+    assert.equal(held.find(x=>x.typeId==="RT001")?.canBook,false,"pending cancellation must continue to block the room");
+    await domain.decideCancellation(admin,bookingId,true,"Approved by test");
+    const released=await domain.availability(checkIn,checkOut,1);
+    assert.equal(released.find(x=>x.typeId==="RT001")?.canBook,true,"approved cancellation releases inventory");
+    const status=await domain.workbookStatus();
+    assert.equal(status.initialized,true);
+    assert.ok(status.sheets.includes("Reservations"));
+  } finally {
+    await rm(dir,{recursive:true,force:true});
+  }
+});
