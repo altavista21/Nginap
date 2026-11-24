@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isIP } from "node:net";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
   }
 
   const { path = [] } = await context.params;
-  if (!path.length || path.some(segment => !/^[a-zA-Z0-9._-]+$/.test(segment))) {
+  if (!path.length || path[0] !== "api" || path.some(segment => !/^[a-zA-Z0-9._-]+$/.test(segment))) {
     return NextResponse.json({ error: "Path API tidak valid." }, { status: 400 });
   }
 
@@ -40,11 +41,29 @@ async function proxy(request: NextRequest, context: RouteContext) {
   url.pathname = "/" + path.map(encodeURIComponent).join("/");
   url.search = request.nextUrl.search;
 
-  let body: ArrayBuffer | undefined;
+  let body: Uint8Array | undefined;
   if (request.method !== "GET" && request.method !== "HEAD") {
-    body = await request.arrayBuffer();
-    if (body.byteLength > 64 * 1024) {
+    const declaredLength = Number(request.headers.get("content-length") ?? "0");
+    if (Number.isFinite(declaredLength) && declaredLength > 64 * 1024) {
       return NextResponse.json({ error: "Ukuran permintaan terlalu besar." }, { status: 413 });
+    }
+    const reader = request.body?.getReader();
+    if (reader) {
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > 64 * 1024) {
+          await reader.cancel();
+          return NextResponse.json({ error: "Ukuran permintaan terlalu besar." }, { status: 413 });
+        }
+        chunks.push(value);
+      }
+      body = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
     }
   }
 
@@ -54,6 +73,9 @@ async function proxy(request: NextRequest, context: RouteContext) {
   if (contentType) headers.set("content-type", contentType);
   if (cookie) headers.set("cookie", cookie);
   headers.set("x-nginap-relay-token", config.token);
+  // Vercel supplies x-real-ip at ingress; never forward browser-controlled forwarding headers.
+  const clientIp = request.headers.get("x-real-ip");
+  if (clientIp && isIP(clientIp)) headers.set("x-nginap-client-ip", clientIp);
   headers.set("accept", request.headers.get("accept") ?? "application/json");
 
   let upstream: Response;
