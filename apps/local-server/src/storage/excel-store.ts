@@ -86,7 +86,7 @@ export class ExcelStore {
     try {
       await workbook.xlsx.writeFile(temporaryPath);
       if (createBackup) {
-        const backupPath = path.join(this.backupDir, "NGINAP_DATABASE-" + new Date().toISOString().replace(/[:.]/g, "-") + ".xlsx");
+        const backupPath = path.join(this.backupDir, "NGINAP_DATABASE-" + new Date().toISOString().replace(/[:.]/g, "-") + "-" + randomUUID() + ".xlsx");
         await copyFile(this.filePath, backupPath);
         await this.pruneBackups();
       }
