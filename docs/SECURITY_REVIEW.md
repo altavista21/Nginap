@@ -5,6 +5,10 @@ Scope: Next.js public web app, same-origin relay, Express local API, staff sessi
 
 ## Findings addressed in this hardening branch
 
+| Dependency | Risk | Remediation / status |
+|---|---|---|
+| Next.js was declared at 15.5.27, within upstream affected ranges for critical image-optimization RCE and later response/cookie handling advisories | A publicly reachable framework endpoint could expose the app to upstream vulnerabilities even when the hotel API is protected | Pin Next.js to 15.5.29, the patched 15.x release identified by upstream advisories; keep monitoring security releases |
+
 | Finding | Risk | Remediation |
 |---|---|---|
 | Reservation lookup page still called the old public localhost API URL instead of the same-origin relay | Guest lookup and cancellation failed outside the hotel LAN and bypassed the intended proxy boundary | Route lookup and cancellation through `/api/nginap` |
