@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - run: npm ci
       - name: Report dependency advisories
         run: |
           npm audit --json > npm-audit.json || true
