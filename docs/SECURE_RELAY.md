@@ -68,8 +68,9 @@ In the Vercel project settings, add these **server-only** environment variables 
 
 - `NGINAP_RELAY_ORIGIN`: the Localtonet HTTPS origin.
 - `NGINAP_RELAY_TOKEN`: exactly the same secret as the hotel API.
+- `NGINAP_TRUSTED_EDGE`: set to `vercel` only when the public Next.js app is deployed directly on Vercel. Vercel documents that `x-real-ip` is the same as `x-forwarded-for`, which Vercel overwrites to prevent client IP spoofing. Leave this unset or `none` on other hosts until their ingress header behavior is verified.
 
-Do not prefix either variable with `NEXT_PUBLIC_`. Do not put the Localtonet AuthToken in Vercel. Set `NGINAP_COOKIE_SECURE=true` on the hotel API. Redeploy the web project after setting environment variables.
+Do not prefix any of these server-only variables with `NEXT_PUBLIC_`. Do not put the Localtonet AuthToken in Vercel. Set `NGINAP_COOKIE_SECURE=true` on the hotel API. Redeploy the web project after setting environment variables.
 
 The browser now calls only the same-origin `/api/nginap/*` route. The Next.js server forwards requests to the tunnel and attaches the relay token. Session cookies are returned to the website origin.
 

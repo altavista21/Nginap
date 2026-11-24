@@ -1,5 +1,5 @@
 import { randomUUID, randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
-import ExcelJS from "exceljs";
+import ExcelJS from "exceljs-hardened";
 import { ExcelStore } from "./storage/excel-store.js";
 import { BLOCKING_STATUSES } from "./storage/schema.js";
 

@@ -1,10 +1,40 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { ExcelStore } from "../src/storage/excel-store.js";
 import { HotelDomain } from "../src/domain.js";
+import { assertSafeXlsxArchive, assertSafeXlsxXml } from "../src/storage/xlsx-preflight.js";
+import { deflateRawSync } from "node:zlib";
+
+
+function makeZipEntry(name: string, content: string): Buffer {
+  const filename = Buffer.from(name);
+  const raw = Buffer.from(content);
+  const compressed = deflateRawSync(raw);
+  const crc32 = (buffer: Buffer) => {
+    let crc = 0xffffffff;
+    for (const byte of buffer) {
+      crc ^= byte;
+      for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+  const crc = crc32(raw);
+  const local = Buffer.alloc(30 + filename.length);
+  local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(8, 8);
+  local.writeUInt32LE(crc, 14); local.writeUInt32LE(compressed.length, 18); local.writeUInt32LE(raw.length, 22);
+  local.writeUInt16LE(filename.length, 26); filename.copy(local, 30);
+  const central = Buffer.alloc(46 + filename.length);
+  central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6); central.writeUInt16LE(8, 10);
+  central.writeUInt32LE(crc, 16); central.writeUInt32LE(compressed.length, 20); central.writeUInt32LE(raw.length, 24);
+  central.writeUInt16LE(filename.length, 28); central.writeUInt32LE(0, 42); filename.copy(central, 46);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(1, 8); eocd.writeUInt16LE(1, 10);
+  eocd.writeUInt32LE(central.length, 12); eocd.writeUInt32LE(local.length + compressed.length, 16);
+  return Buffer.concat([local, compressed, central, eocd]);
+}
 
 test("booking allocation is serialized, idempotent and cancellation holds inventory until admin approval", async () => {
   const dir=await mkdtemp(path.join(os.tmpdir(),"nginap-test-"));
@@ -59,5 +89,33 @@ test("booking allocation is serialized, idempotent and cancellation holds invent
     assert.ok(status.sheets.includes("Reservations"));
   } finally {
     await rm(dir,{recursive:true,force:true});
+  }
+});
+
+
+test("XLSX archive preflight rejects malicious merged ranges before workbook parsing", () => {
+  const malicious = makeZipEntry("xl/worksheets/sheet1.xml", '<worksheet><mergeCells><mergeCell ref="A1:XFD1048576"/></mergeCells></worksheet>');
+  assert.throws(() => assertSafeXlsxArchive(malicious), /oversized merged-cell range/i);
+  const drawing = makeZipEntry("xl/drawings/drawing1.xml", '<xdr:wsDr><xdr:from><xdr:col>300000000</xdr:col></xdr:from></xdr:wsDr>');
+  assert.throws(() => assertSafeXlsxArchive(drawing), /out-of-range drawing column/i);
+});
+
+test("XLSX preflight rejects oversized merged ranges and drawing anchors", () => {
+  assert.throws(() => assertSafeXlsxXml("xl/worksheets/sheet1.xml", '<worksheet><mergeCells><mergeCell ref="A1:XFD1048576"/></mergeCells></worksheet>'), /oversized merged-cell range/i);
+  assert.throws(() => assertSafeXlsxXml("xl/drawings/drawing1.xml", '<xdr:wsDr><xdr:from><xdr:col>300000000</xdr:col></xdr:from></xdr:wsDr>'), /out-of-range drawing column/i);
+  assert.doesNotThrow(() => assertSafeXlsxXml("xl/worksheets/sheet1.xml", '<worksheet><mergeCells><mergeCell ref="A1:B2"/></mergeCells></worksheet>'));
+});
+
+
+test("rejects oversized workbook files before Excel parsing", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "nginap-size-test-"));
+  try {
+    const dataDir = path.join(dir, "data");
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(path.join(dataDir, "NGINAP_DATABASE.xlsx"), Buffer.alloc(25 * 1024 * 1024 + 1));
+    const store = new ExcelStore(path.join(dataDir, "NGINAP_DATABASE.xlsx"), path.join(dir, "backups"));
+    await assert.rejects(store.initialize(), /file size is outside the permitted limit/i);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
   }
 });

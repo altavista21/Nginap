@@ -1,9 +1,10 @@
-import ExcelJS from "exceljs";
-import { mkdir, copyFile, rename, rm, access, stat } from "node:fs/promises";
+import ExcelJS from "exceljs-hardened";
+import { mkdir, copyFile, rename, rm, access, stat, lstat, readdir, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { DEFAULT_ROOM_TYPES, WORKSHEETS } from "./schema.js";
+import { assertSafeXlsxArchive } from "./xlsx-preflight.js";
 
 class SerialQueue {
   private tail: Promise<unknown> = Promise.resolve();
@@ -13,6 +14,9 @@ class SerialQueue {
     return next;
   }
 }
+
+const MAX_WORKBOOK_BYTES = 25 * 1024 * 1024;
+const MAX_BACKUPS = 30;
 
 export class ExcelStore {
   private readonly queue = new SerialQueue();
@@ -56,8 +60,13 @@ export class ExcelStore {
   }
 
   private async readWorkbook(): Promise<ExcelJS.Workbook> {
+    const file = await lstat(this.filePath);
+    if (!file.isFile() || file.isSymbolicLink()) throw new Error("Workbook must be a regular non-symlink file.");
+    if (file.size < 4 || file.size > MAX_WORKBOOK_BYTES) throw new Error("Workbook file size is outside the permitted limit.");
+    const archive = await readFile(this.filePath);
+    assertSafeXlsxArchive(archive);
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(this.filePath);
+    await workbook.xlsx.load(archive as any, { maxEntryUncompressedSize: 32 * 1024 * 1024, maxTotalUncompressedSize: 128 * 1024 * 1024, maxMergeCells: 10_000, maxDataValidationCells: 100_000, maxDefinedNameCells: 100_000 });
     return workbook;
   }
 
@@ -77,14 +86,23 @@ export class ExcelStore {
     try {
       await workbook.xlsx.writeFile(temporaryPath);
       if (createBackup) {
-        const backupPath = path.join(this.backupDir, "NGINAP_DATABASE-" + new Date().toISOString().replace(/[:.]/g, "-") + ".xlsx");
+        const backupPath = path.join(this.backupDir, "NGINAP_DATABASE-" + new Date().toISOString().replace(/[:.]/g, "-") + "-" + randomUUID() + ".xlsx");
         await copyFile(this.filePath, backupPath);
+        await this.pruneBackups();
       }
       await rename(temporaryPath, this.filePath);
     } catch (error) {
       await rm(temporaryPath, { force: true }).catch(() => undefined);
       throw error;
     }
+  }
+
+  private async pruneBackups(): Promise<void> {
+    const files = (await readdir(this.backupDir, { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && /^NGINAP_DATABASE-.*\.xlsx$/.test(entry.name))
+      .map((entry) => entry.name)
+      .sort((a, b) => b.localeCompare(a));
+    await Promise.all(files.slice(MAX_BACKUPS).map((name) => rm(path.join(this.backupDir, name), { force: true })));
   }
 
   async read<T>(reader: (workbook: ExcelJS.Workbook) => T | Promise<T>): Promise<T> {

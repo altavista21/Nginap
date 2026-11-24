@@ -76,7 +76,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
   headers.set("x-nginap-relay-token", config.token);
   // Vercel supplies x-real-ip at ingress; never forward browser-controlled forwarding headers.
   const clientIp = request.headers.get("x-real-ip");
-  if (clientIp && isIP(clientIp)) headers.set("x-nginap-client-ip", clientIp);
+  if (process.env.NGINAP_TRUSTED_EDGE === "vercel" && clientIp && isIP(clientIp)) headers.set("x-nginap-client-ip", clientIp);
   headers.set("accept", request.headers.get("accept") ?? "application/json");
 
   let upstream: Response;
