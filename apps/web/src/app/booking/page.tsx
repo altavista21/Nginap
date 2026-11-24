@@ -1,7 +1,7 @@
 "use client";
 import { useMemo,useState } from "react";
 import { ArrowLeft, BedDouble, CalendarDays, CheckCircle2, LoaderCircle, MapPin } from "lucide-react";
-const API=process.env.NEXT_PUBLIC_LOCAL_API_URL??"http://127.0.0.1:4100";
+const API="/api/nginap";
 function dateOffset(days:number){const d=new Date();d.setDate(d.getDate()+days);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");}
 type RoomType={typeId:string;name:string;description:string;price:number;capacity:number;available:number;canBook:boolean};
 export default function BookingPage(){
