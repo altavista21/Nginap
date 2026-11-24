@@ -7,6 +7,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: lockfile-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   lockfile:
     if: ${{ !hashFiles('package-lock.json') }}
