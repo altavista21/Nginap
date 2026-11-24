@@ -22,6 +22,9 @@ const secret=process.env.NGINAP_SESSION_SECRET??"";
 const relayToken=process.env.NGINAP_RELAY_TOKEN??"";
 if(secret.length<32)throw new Error("NGINAP_SESSION_SECRET wajib diisi dengan nilai acak minimal 32 karakter.");
 if(relayToken.length<32)throw new Error("NGINAP_RELAY_TOKEN wajib diisi dengan nilai acak minimal 32 karakter.");
+if(!["127.0.0.1","::1","localhost"].includes(host))throw new Error("NGINAP_HOST harus loopback (127.0.0.1 atau ::1).");
+if(!Number.isInteger(port)||port<1||port>65535)throw new Error("NGINAP_PORT tidak valid.");
+const secureCookie=process.env.NODE_ENV==="production"||process.env.NGINAP_COOKIE_SECURE==="true";
 const app=express();const store=new ExcelStore(path.join(dataDir,"NGINAP_DATABASE.xlsx"),backupDir);const domain=new HotelDomain(store,secret);
 app.disable("x-powered-by");app.use(helmet({crossOriginResourcePolicy:{policy:"same-site"}}));
 function clientRateLimitKey(req:express.Request):string{const forwarded=req.get("x-nginap-client-ip")??"";const ip=isIP(forwarded)?forwarded:(req.ip??req.socket.remoteAddress??"127.0.0.1");return ipKeyGenerator(ip);}
@@ -44,7 +47,7 @@ const staffSchema=z.object({username:z.string().min(3).max(60),password:z.string
 const cancellationSchema=z.object({bookingId:z.string().min(5),email:z.string().email(),reason:z.string().min(5).max(500)});
 app.get("/health",async(_req,res)=>{try{res.json({status:"ok",service:"nginap-local-server",storage:await domain.workbookStatus()});}catch{res.status(503).json({status:"unavailable"});}});
 app.post("/api/auth/bootstrap",authLimiter,async(req,res,next)=>{try{const gate=process.env.NGINAP_BOOTSTRAP_KEY??"";const provided=String(req.headers["x-bootstrap-key"]??"");if(gate.length<24||provided.length!==gate.length||!timingSafeEqual(Buffer.from(provided),Buffer.from(gate)))return res.status(403).json({error:"Bootstrap tidak diizinkan."});const data=validate(loginSchema,req.body);await domain.bootstrap(data.username,data.password);res.status(201).json({success:true,message:"Superadmin berhasil dibuat. Hapus NGINAP_BOOTSTRAP_KEY dari konfigurasi setelah setup."});}catch(e){next(e);}});
-app.post("/api/auth/login",authLimiter,async(req,res,next)=>{try{const data=validate(loginSchema,req.body);const user=await domain.login(data.username,data.password);res.cookie(cookieName,domain.signSession(user),{httpOnly:true,sameSite:"strict",secure:process.env.NGINAP_COOKIE_SECURE==="true",maxAge:8*60*60*1000,path:"/"});res.json({user});}catch(e){next(e);}});
+app.post("/api/auth/login",authLimiter,async(req,res,next)=>{try{const data=validate(loginSchema,req.body);const user=await domain.login(data.username,data.password);res.cookie(cookieName,domain.signSession(user),{httpOnly:true,sameSite:"strict",secure:secureCookie,maxAge:8*60*60*1000,path:"/"});res.json({user});}catch(e){next(e);}});
 app.post("/api/auth/logout",(req,res)=>{res.clearCookie(cookieName,{httpOnly:true,sameSite:"strict",secure:process.env.NGINAP_COOKIE_SECURE==="true",path:"/"});res.json({success:true});});
 app.get("/api/auth/me",requireAuth(),(req,res)=>res.json({user:(req as express.Request&{actor:NonNullable<ReturnType<typeof actor>>}).actor}));
 app.get("/api/public/room-types",async(req,res,next)=>{try{const checkIn=String(req.query.checkIn??"");const checkOut=String(req.query.checkOut??"");const count=Number(req.query.roomCount??1);res.json({roomTypes:await domain.availability(checkIn,checkOut,count)});}catch(e){next(e);}});
