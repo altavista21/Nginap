@@ -32,9 +32,30 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:4100/api/auth/bootstrap -He
 ```
 Segera hapus `NGINAP_BOOTSTRAP_KEY` dari file `.env` setelah akun pertama dibuat, lalu restart service. Buat akun admin dan resepsionis dari superadmin melalui API `POST /api/staff` (fitur UI manajemen akun menyusul).
 
+## Pengamanan folder Excel dan backup
+
+Untuk produksi, simpan data di luar folder repository agar tidak ikut tersalin saat pembaruan aplikasi:
+
+```powershell
+New-Item -ItemType Directory -Force C:\ProgramData\Nginap\data, C:\ProgramData\Nginap\backups
+```
+
+Atur `NGINAP_DATA_DIR=C:\ProgramData\Nginap\data` dan `NGINAP_BACKUP_DIR=C:\ProgramData\Nginap\backups` pada environment service. Buat akun Windows lokal standar khusus untuk menjalankan service Nginap, misalnya `.\nginap-svc`. Jangan jalankan service dengan akun administrator harian.
+
+Dari PowerShell **Run as Administrator**, terapkan ACL berikut (ganti nama akun bila berbeda):
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\secure-storage-acl.ps1 -DataDirectory 'C:\ProgramData\Nginap\data' -BackupDirectory 'C:\ProgramData\Nginap\backups' -ServiceAccount '.\nginap-svc'
+```
+
+Pastikan service Node.js benar-benar berjalan memakai akun tersebut. ACL memberi hak Modify hanya kepada akun service; SYSTEM dan grup Administrators mendapat Full Control. Akun staf hotel biasa tidak boleh memiliki hak menulis langsung ke folder data. Aktifkan BitLocker pada volume penyimpanan dan verifikasi dengan `manage-bde -status C:`.
+
+Aplikasi membatasi workbook maksimum 25 MiB, membatasi ukuran ekstraksi ZIP, menolak file symlink dan rentang merged-cell/drawing yang tidak wajar, serta menyimpan maksimum 30 backup otomatis terbaru. Backup di folder yang sama bukan pengganti backup eksternal terenkripsi.
+
 ## Data hotel
 - Workbook dibuat otomatis pada `apps/local-server/data/NGINAP_DATABASE.xlsx` (atau `NGINAP_DATA_DIR`).
-- Backup dibuat sebelum setiap transaksi pada folder `backups`.
+- Backup dibuat sebelum setiap transaksi pada folder `backups`; hanya 30 backup otomatis terbaru yang disimpan.
 - Masukkan nomor kamar aktual dan tarif tiap kategori dari menu Inventaris/Tarif pada dashboard admin.
 - Jangan buka workbook di Excel saat service berjalan. Gunakan tombol Ekspor Excel untuk mengambil salinan baca.
 - Simpan backup tambahan terenkripsi ke media terpisah dan uji pemulihan sebelum operasional.
