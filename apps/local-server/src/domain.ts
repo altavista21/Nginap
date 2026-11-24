@@ -3,7 +3,8 @@ import ExcelJS from "exceljs";
 import { ExcelStore } from "./storage/excel-store.js";
 import { BLOCKING_STATUSES } from "./storage/schema.js";
 
-export class DomainError extends Error {}\ntype Role = "superadmin" | "admin" | "receptionist";
+export class DomainError extends Error {}
+type Role = "superadmin" | "admin" | "receptionist";
 type Actor = { userId: string; username: string; role: Role };
 type Row = Record<string, string | number | boolean | null>;
 const id = (prefix: string) => prefix + "_" + randomUUID().replace(/-/g,"").slice(0,16);
